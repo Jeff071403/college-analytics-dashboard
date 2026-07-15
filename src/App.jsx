@@ -22,7 +22,9 @@ import {
   Check,
   Loader2,
   AlertTriangle,
-  Home
+  Home,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -42,6 +44,21 @@ export default function App() {
   const [colleges, setColleges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Dark / Light theme
+  const [darkMode, setDarkMode] = useState(() => {
+    try { return localStorage.getItem('theme') === 'dark'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('theme', darkMode ? 'dark' : 'light'); } catch {}
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      document.body.style.background = '#0A0A1A';
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.style.background = '#F3F4F6';
+    }
+  }, [darkMode]);
   
   // Navigation / View state
   const [currentView, setCurrentView] = useState('explorer');
@@ -57,8 +74,26 @@ export default function App() {
   const [selectedHostel, setSelectedHostel] = useState('');
   const [activeCategoryTab, setActiveCategoryTab] = useState('All');
   
+  // Course Filter States
+  const [selectedCourseLevel, setSelectedCourseLevel] = useState('');
+  const [selectedCourseName, setSelectedCourseName] = useState('');
+  const [uniqueCourseNames, setUniqueCourseNames] = useState([]);
+  
+  // Dashboard stats from backend
+  const [courseStats, setCourseStats] = useState({
+    total_courses: 0,
+    avg_courses: 0,
+    highest_course_college: null,
+    course_distribution: { UG: 0, PG: 0, Diploma: 0, PhD: 0 }
+  });
+  
   // Detail Modal State
   const [selectedCollege, setSelectedCollege] = useState(null);
+  
+  // Modal tab and courses
+  const [modalTab, setModalTab] = useState('overview');
+  const [selectedCollegeCourses, setSelectedCollegeCourses] = useState([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
 
   // Admin View States
   const [adminSearchText, setAdminSearchText] = useState('');
@@ -108,20 +143,13 @@ export default function App() {
   const handleSave = (e) => {
     e.preventDefault();
     if (!selectedAdminCollege) return;
-    
     setIsSaving(true);
     setSaveStatus(null);
     setSaveMessage('');
-    
-    const payload = {
-      ...formState
-    };
-    
+    const payload = { ...formState };
     fetch(`/api/colleges/${selectedAdminCollege.college_id}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
       .then(res => res.json())
@@ -130,11 +158,9 @@ export default function App() {
         if (res.status === 'success') {
           setSaveStatus('success');
           setSaveMessage('College record updated successfully in database!');
-          setColleges(prevColleges => 
-            prevColleges.map(c => 
-              c.college_id === selectedAdminCollege.college_id 
-                ? { ...c, ...res.data }
-                : c
+          setColleges(prevColleges =>
+            prevColleges.map(c =>
+              c.college_id === selectedAdminCollege.college_id ? { ...c, ...res.data } : c
             )
           );
           setSelectedAdminCollege(res.data);
@@ -150,40 +176,68 @@ export default function App() {
       });
   };
 
-  // Fetch data on mount
+  // Debounce search text
+  const [debouncedSearchText, setDebouncedSearchText] = useState('');
   useEffect(() => {
-    fetch('/api/colleges')
-      .then(res => {
-        if (!res.ok) {
-          throw new Error('Network response was not ok');
-        }
-        return res.json();
-      })
+    const handler = setTimeout(() => { setDebouncedSearchText(searchText); }, 300);
+    return () => clearTimeout(handler);
+  }, [searchText]);
+
+  // Fetch unique course names on mount
+  useEffect(() => {
+    fetch('/api/courses')
+      .then(res => res.json())
+      .then(res => { if (res.status === 'success') setUniqueCourseNames(res.data); })
+      .catch(err => console.error('Error fetching course list:', err));
+  }, []);
+
+  // Fetch colleges list
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (debouncedSearchText.trim()) params.append('search', debouncedSearchText);
+    if (selectedCourseLevel) params.append('course_level', selectedCourseLevel);
+    if (selectedCourseName) params.append('course_name', selectedCourseName);
+    fetch(`/api/colleges?${params.toString()}`)
+      .then(res => { if (!res.ok) throw new Error('Network response was not ok'); return res.json(); })
       .then(res => {
         if (res.status === 'success') {
           setColleges(res.data);
+          if (res.stats) setCourseStats(res.stats);
         } else {
           throw new Error(res.message || 'Failed to load colleges');
         }
         setLoading(false);
       })
-      .catch(err => {
-        console.error('Error fetching data:', err);
-        setError(err.message);
-        setLoading(false);
-      });
-  }, []);
+      .catch(err => { console.error('Error fetching colleges data:', err); setError(err.message); setLoading(false); });
+  }, [debouncedSearchText, selectedCourseLevel, selectedCourseName]);
 
-  // Listen to Escape key for closing modal
+  // Fetch courses when modal opens
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') setSelectedCollege(null);
-    };
+    if (selectedCollege) {
+      setModalTab('overview');
+      setLoadingCourses(true);
+      fetch(`/api/colleges/${selectedCollege.college_id}/courses`)
+        .then(res => res.json())
+        .then(res => {
+          setSelectedCollegeCourses(res.status === 'success' ? res.data : []);
+          setLoadingCourses(false);
+        })
+        .catch(() => { setSelectedCollegeCourses([]); setLoadingCourses(false); });
+    } else {
+      setSelectedCollegeCourses([]);
+      setModalTab('overview');
+    }
+  }, [selectedCollege]);
+
+  // Escape key closes modal
+  useEffect(() => {
+    const handleKeyDown = (e) => { if (e.key === 'Escape') setSelectedCollege(null); };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Get dynamic unique filter options from the full dataset
+  // Filter options
   const categories = [...new Set(colleges.map(c => c.college_category))].sort();
   const locations = [...new Set(colleges.map(c => c.location_normalized))].sort();
   const naacGrades = ['A++', 'A+', 'A', 'B++', 'B+', 'B', 'C', 'D', 'Not Accredited', 'Not Listed'];
@@ -191,7 +245,6 @@ export default function App() {
   const universityCategories = [...new Set(colleges.map(c => c.university_category).filter(Boolean))].sort();
   const hostelFacilities = ['Boys & Girls', 'Girls Only', 'Boys Only', 'No Hostel Found'];
 
-  // Clear all filters
   const handleClearFilters = () => {
     setSearchText('');
     setSelectedCategory('');
@@ -201,1215 +254,904 @@ export default function App() {
     setSelectedNirf('');
     setSelectedUnivCategory('');
     setSelectedHostel('');
+    setSelectedCourseLevel('');
+    setSelectedCourseName('');
+    setActiveCategoryTab('All');
   };
 
-  // Determine active filter count
+  // Sync category pill + dropdown together
+  const handleCategorySelect = (catName) => {
+    setActiveCategoryTab(catName);
+    setSelectedCategory(catName === 'All' ? '' : catName);
+  };
+
+  // Scroll helpers
+  const scrollToSection = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const activeFilterCount = [
-    searchText.trim() !== '',
-    selectedCategory !== '',
-    selectedLocation !== '',
-    selectedNaac !== '',
-    selectedAutonomous !== '',
-    selectedNirf !== '',
-    selectedUnivCategory !== '',
-    selectedHostel !== ''
+    searchText.trim() !== '', selectedCategory !== '', selectedLocation !== '',
+    selectedNaac !== '', selectedAutonomous !== '', selectedNirf !== '',
+    selectedUnivCategory !== '', selectedHostel !== '',
+    selectedCourseLevel !== '', selectedCourseName !== ''
   ].filter(Boolean).length;
 
-  // Filter Logic (AND logic combines all active filters)
+  // Filter logic
   const filteredColleges = colleges.filter(college => {
-    // 0. Primary Category Tab Focus
     if (activeCategoryTab !== 'All' && college.college_category !== activeCategoryTab) return false;
-
-    // 1. Text Search (matches name or principal, case-insensitive)
-    if (searchText.trim()) {
-      const q = searchText.toLowerCase();
-      const nameMatch = college.college_name?.toLowerCase().includes(q);
-      const principalMatch = college.principal_name?.toLowerCase().includes(q);
-      if (!nameMatch && !principalMatch) return false;
-    }
-    
-    // 2. Category
     if (selectedCategory && college.college_category !== selectedCategory) return false;
-    
-    // 3. Normalized Location
     if (selectedLocation && college.location_normalized !== selectedLocation) return false;
-    
-    // 4. NAAC Grade
     if (selectedNaac && college.naac_grade !== selectedNaac) return false;
-    
-    // 5. Autonomous
     if (selectedAutonomous && college.autonomous !== selectedAutonomous) return false;
-
-    // 6. NIRF Rank Status
     if (selectedNirf === 'ranked' && !college.nirf_rank) return false;
     if (selectedNirf === 'unranked' && college.nirf_rank) return false;
-
-    // 7. University Category
     if (selectedUnivCategory && college.university_category !== selectedUnivCategory) return false;
-
-    // 8. Hostel Facility
     if (selectedHostel && college.hostel_facility !== selectedHostel) return false;
-    
     return true;
   });
 
-  // Calculate live statistics for filtered set
   const totalFiltered = filteredColleges.length;
-  
-  // % NAAC Accredited: (A++, A+, A, B++, B+, B, C, D are accredited; Not Accredited/Not Listed are not)
-  const accreditedCount = filteredColleges.filter(c => 
-    c.naac_grade !== 'Not Accredited' && c.naac_grade !== 'Not Listed'
-  ).length;
+  const accreditedCount = filteredColleges.filter(c => c.naac_grade !== 'Not Accredited' && c.naac_grade !== 'Not Listed').length;
   const pctAccredited = totalFiltered > 0 ? Math.round((accreditedCount / totalFiltered) * 100) : 0;
-
-  // % Autonomous
   const autonomousCount = filteredColleges.filter(c => c.autonomous === 'Yes').length;
   const pctAutonomous = totalFiltered > 0 ? Math.round((autonomousCount / totalFiltered) * 100) : 0;
-
-  // % Hostel Available
   const hostelCount = filteredColleges.filter(c => c.hostel_facility && c.hostel_facility !== 'No Hostel Found').length;
   const pctHostel = totalFiltered > 0 ? Math.round((hostelCount / totalFiltered) * 100) : 0;
-
-  // Top University category in filtered view
-  const univCountsForPill = filteredColleges.reduce((acc, c) => {
-    acc[c.university_category] = (acc[c.university_category] || 0) + 1;
-    return acc;
-  }, {});
-  const topUnivCategory = Object.entries(univCountsForPill)
-    .sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown';
-
-  // Header Thesis Stat: calculated live from overall dataset
+  const univCountsForPill = filteredColleges.reduce((acc, c) => { acc[c.university_category] = (acc[c.university_category] || 0) + 1; return acc; }, {});
+  const topUnivCategory = Object.entries(univCountsForPill).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown';
   const totalCollegesCount = colleges.length;
-  const totalUnaccreditedCount = colleges.filter(c => 
-    c.naac_grade === 'Not Accredited' || c.naac_grade === 'Not Listed'
-  ).length;
+  const totalUnaccreditedCount = colleges.filter(c => c.naac_grade === 'Not Accredited' || c.naac_grade === 'Not Listed').length;
   const totalUnaccreditedPct = totalCollegesCount > 0 ? Math.round((totalUnaccreditedCount / totalCollegesCount) * 100) : 0;
   const rankedCountTotal = colleges.filter(c => c.nirf_rank).length;
-  const thesisStatement = `${totalCollegesCount} institutions · ${rankedCountTotal} NIRF ranked · ~${totalUnaccreditedPct}% carry no NAAC accreditation`;
+  const thesisStatement = `${totalCollegesCount} institutions · ${rankedCountTotal} NIRF ranked · ~${totalUnaccreditedPct}% unaccredited`;
 
-  // --- Chart 1: Colleges by Category ---
-  const categoryCounts = filteredColleges.reduce((acc, c) => {
-    acc[c.college_category] = (acc[c.college_category] || 0) + 1;
-    return acc;
-  }, {});
-  
-  const categoryChartData = Object.entries(categoryCounts)
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
+  const categoryCounts = filteredColleges.reduce((acc, c) => { acc[c.college_category] = (acc[c.college_category] || 0) + 1; return acc; }, {});
+  const categoryChartData = Object.entries(categoryCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  const regionCounts = filteredColleges.reduce((acc, c) => { acc[c.location_normalized] = (acc[c.location_normalized] || 0) + 1; return acc; }, {});
+  const regionChartData = Object.entries(regionCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  const naacCounts = filteredColleges.reduce((acc, c) => { acc[c.naac_grade] = (acc[c.naac_grade] || 0) + 1; return acc; }, {});
+  const naacChartData = naacGrades.map(grade => ({ name: grade, value: naacCounts[grade] || 0 })).filter(item => item.value > 0);
+  const hostelCounts = filteredColleges.reduce((acc, c) => { acc[c.hostel_facility] = (acc[c.hostel_facility] || 0) + 1; return acc; }, {});
+  const hostelChartData = Object.entries(hostelCounts).map(([name, value]) => ({ name, value }));
+  const HOSTEL_COLORS = { 'Boys & Girls': '#8B5CF6', 'Girls Only': '#EC4899', 'Boys Only': '#3B82F6', 'No Hostel Found': '#64748B' };
+  const univCounts = filteredColleges.reduce((acc, c) => { acc[c.university_category] = (acc[c.university_category] || 0) + 1; return acc; }, {});
+  const univChartData = Object.entries(univCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
 
-  // --- Chart 1 Dynamic: region counts when tab is selected ---
-  const regionCounts = filteredColleges.reduce((acc, c) => {
-    acc[c.location_normalized] = (acc[c.location_normalized] || 0) + 1;
-    return acc;
-  }, {});
-  
-  const regionChartData = Object.entries(regionCounts)
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
-
-  // --- Chart 2: Colleges by NAAC Grade ---
-  const naacCounts = filteredColleges.reduce((acc, c) => {
-    acc[c.naac_grade] = (acc[c.naac_grade] || 0) + 1;
-    return acc;
-  }, {});
-
-  const naacChartData = naacGrades
-    .map(grade => ({ name: grade, value: naacCounts[grade] || 0 }))
-    .filter(item => item.value > 0);
-
-  // --- Chart 3: Hostel Facilities Distribution ---
-  const hostelCounts = filteredColleges.reduce((acc, c) => {
-    acc[c.hostel_facility] = (acc[c.hostel_facility] || 0) + 1;
-    return acc;
-  }, {});
-  
-  const hostelChartData = Object.entries(hostelCounts)
-    .map(([name, value]) => ({ name, value }));
-    
-  const HOSTEL_COLORS = {
-    'Boys & Girls': '#8B5CF6',
-    'Girls Only': '#EC4899',
-    'Boys Only': '#3B82F6',
-    'No Hostel Found': '#64748B'
-  };
-
-  // --- Chart 4: University Affiliations ---
-  const univCounts = filteredColleges.reduce((acc, c) => {
-    acc[c.university_category] = (acc[c.university_category] || 0) + 1;
-    return acc;
-  }, {});
-  
-  const univChartData = Object.entries(univCounts)
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 6);
-
-  // Color Helper for NAAC Grades
   const getNaacColor = (grade) => {
-    if (['A++', 'A+', 'A'].includes(grade)) return '#10b981'; // Emerald/Green
-    if (['B++', 'B+', 'B'].includes(grade)) return '#d97706'; // Amber/Gold
-    return '#64748b'; // Slate/Gray for C, D, Not Accredited, Not Listed
+    if (['A++', 'A+', 'A'].includes(grade)) return '#10b981';
+    if (['B++', 'B+', 'B'].includes(grade)) return '#d97706';
+    return '#64748b';
   };
 
   const getNaacBadgeClass = (grade) => {
-    if (['A++', 'A+', 'A'].includes(grade)) {
-      return 'bg-emerald-50 text-emerald-800 border-emerald-200';
-    }
-    if (['B++', 'B+', 'B'].includes(grade)) {
-      return 'bg-accent-50 text-accent-800 border-accent-200';
-    }
+    if (['A++', 'A+', 'A'].includes(grade)) return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+    if (['B++', 'B+', 'B'].includes(grade)) return 'bg-accent-50 text-accent-800 border-accent-200';
     return 'bg-slate-50 text-slate-700 border-slate-200';
   };
 
+  const ugCount = selectedCollegeCourses.filter(c => c.course_level === 'UG').length;
+  const pgCount = selectedCollegeCourses.filter(c => c.course_level === 'PG').length;
+  const diplomaCount = selectedCollegeCourses.filter(c => c.course_level === 'Diploma').length;
+  const phdCount = selectedCollegeCourses.filter(c => c.course_level === 'PhD').length;
+
+  const getCategoryEmoji = (catName = '') => {
+    if (catName.includes('Arts')) return '🎨';
+    if (catName.includes('Engineering')) return '⚙️';
+    if (catName.includes('Medical') || catName.includes('Physio')) return '🏥';
+    if (catName.includes('Pharmacy')) return '💊';
+    if (catName.includes('Dental')) return '🦷';
+    if (catName.includes('ITI')) return '🔧';
+    return '🏛️';
+  };
+
+  // ─── RENDER ───────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* HEADER SECTION */}
-      <header className="bg-white/90 backdrop-blur-sm rounded-2xl px-8 py-8 shadow-sm mb-8 border border-purple-100">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center text-white text-xl">
-                🏛️
-              </div>
-              <div>
-                <span className="text-xs font-semibold tracking-wider text-purple-700 uppercase block">
-                  National Registry
-                </span>
-                <h1 className="text-3xl font-bold text-slate-900">
-                  College Accreditation Explorer
-                </h1>
-              </div>
-            </div>
-          </div>
-          <div className="text-slate-600 font-medium text-sm md:text-right">
-            {loading ? (
-              <span className="animate-pulse">Loading dataset...</span>
-            ) : (
-              <span className="text-xs text-slate-500">{thesisStatement}</span>
-            )}
-          </div>
+    <div id="app-root" className={darkMode ? 'dark' : ''} style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--page-bg)' }}>
+
+      {/* ══════ SIDEBAR ══════ */}
+      <aside className="sidebar">
+        <div className="sidebar-logo">
+          <div className="logo-icon">🏛️</div>
+          <h2>College<br/>Analytics</h2>
+          <p>Accreditation Registry</p>
         </div>
 
-        {/* View Selection Tabs */}
-        {!loading && !error && (
-          <div className="flex items-center gap-6 mt-6 border-t border-purple-100 pt-4">
-            <button 
-              id="tab-explorer"
-              onClick={() => setCurrentView('explorer')}
-              className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${
-                currentView === 'explorer' 
-                  ? 'border-purple-600 text-purple-700' 
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              <Building2 className="h-4 w-4" />
-              Accreditation Explorer
-            </button>
-            <button 
-              id="tab-admin"
-              onClick={() => setCurrentView('admin')}
-              className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${
-                currentView === 'admin' 
-                  ? 'border-purple-600 text-purple-700' 
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              <Database className="h-4 w-4" />
-              Registry Editor
-            </button>
-          </div>
-        )}
+        <span className="sidebar-section-label">Main Menu</span>
+        <button onClick={() => setCurrentView('explorer')} className={`sidebar-nav-item${currentView === 'explorer' ? ' active' : ''}`}>
+          <Building2 className="nav-icon" /><span>Explorer</span>
+        </button>
+        <button onClick={() => { setCurrentView('explorer'); setTimeout(() => scrollToSection('filter-bar-section'), 100); }} className="sidebar-nav-item">
+          <GraduationCap className="nav-icon" /><span>Courses</span>
+        </button>
+        <button onClick={() => setCurrentView('admin')} className={`sidebar-nav-item${currentView === 'admin' ? ' active' : ''}`}>
+          <Database className="nav-icon" /><span>Registry Editor</span>
+        </button>
 
-        {/* Category-Specific Focus Navigation pills */}
-        {!loading && !error && currentView === 'explorer' && (
-          <div className="mt-4 border-t border-purple-100 pt-4 animate-in fade-in duration-200">
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-700 block mb-2.5">
-              Dashboard Category Focus
-            </span>
-            <div className="flex flex-wrap items-center gap-2 pb-1 max-h-[85px] overflow-y-auto scrollbar-thin">
-              <button
-                onClick={() => {
-                  setActiveCategoryTab('All');
-                  setSelectedCategory('');
-                }}
-                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold border transition-all duration-200 ${
-                  activeCategoryTab === 'All'
-                    ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
-                    : 'bg-white border-slate-200 text-slate-600 hover:border-purple-300 hover:text-purple-700'
-                }`}
-              >
-                🏛️ All Colleges
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  activeCategoryTab === 'All' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
-                }`}>
-                  {colleges.length}
-                </span>
-              </button>
-              
-              {Object.entries(
-                colleges.reduce((acc, c) => {
-                  acc[c.college_category] = (acc[c.college_category] || 0) + 1;
-                  return acc;
-                }, {})
-              )
-                .sort((a, b) => b[1] - a[1])
-                .map(([catName, count]) => {
-                  let emoji = '📚';
-                  if (catName.includes('Arts')) emoji = '🎨';
-                  else if (catName.includes('Engineering')) emoji = '⚙️';
-                  else if (catName.includes('ITI')) emoji = '🔧';
-                  else if (catName.includes('Dental')) emoji = '🦷';
-                  else if (catName.includes('Pharmacy')) emoji = '💊';
-                  else if (catName.includes('Physio') || catName.includes('Theraphy')) emoji = '🏥';
-                  else if (catName.includes('Ayurveda') || catName.includes('Siddha') || catName.includes('Hemoepathy')) emoji = '🌿';
-                  
-                  const isActive = activeCategoryTab === catName;
-                  return (
-                    <button
-                      key={catName}
-                      onClick={() => {
-                        setActiveCategoryTab(catName);
-                      }}
-                      className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold border transition-all duration-200 ${
-                        isActive
-                          ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
-                          : 'bg-white border-slate-200 text-slate-600 hover:border-purple-300 hover:text-purple-700'
-                      }`}
-                    >
-                      <span>{emoji}</span>
-                      <span>{catName}</span>
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                        isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
-                      }`}>
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-            </div>
-          </div>
-        )}
-      </header>
+        <span className="sidebar-section-label" style={{ marginTop: '0.5rem' }}>Analytics</span>
+        <button onClick={() => { setCurrentView('explorer'); handleClearFilters(); setTimeout(() => scrollToSection('category-bar'), 100); }} className="sidebar-nav-item">
+          <Award className="nav-icon" /><span>NAAC Reports</span>
+        </button>
+        <button onClick={() => { setCurrentView('explorer'); setSelectedNirf('ranked'); setTimeout(() => scrollToSection('college-grid-section'), 100); }} className="sidebar-nav-item">
+          <Trophy className="nav-icon" /><span>NIRF Rankings</span>
+        </button>
+        <button onClick={() => { setCurrentView('explorer'); setTimeout(() => scrollToSection('category-bar'), 100); }} className="sidebar-nav-item">
+          <MapPin className="nav-icon" /><span>By Region</span>
+        </button>
 
-      {loading && (
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="h-10 w-10 border-2 border-accent-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-4 text-slate-500 text-sm font-medium">Loading institutional data...</p>
+        <span className="sidebar-section-label" style={{ marginTop: '0.5rem' }}>Info</span>
+        <button onClick={() => { setCurrentView('explorer'); handleClearFilters(); }} className="sidebar-nav-item">
+          <Globe className="nav-icon" /><span>About</span>
+        </button>
+        <button onClick={() => { setCurrentView('explorer'); setSelectedCollege(colleges.find(c => c.email || c.phone || c.website) || null); }} className="sidebar-nav-item">
+          <Phone className="nav-icon" /><span>Contact</span>
+        </button>
+
+        <div style={{ marginTop: 'auto', padding: '1rem 1.25rem 0' }}>
+          <div style={{ fontSize: '0.62rem', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <MapPin style={{ width: 12, height: 12 }} /><span>Tamil Nadu, India</span>
+          </div>
         </div>
-      )}
+      </aside>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 my-4 text-center">
-          <p className="text-red-700 font-medium">Failed to retrieve college database details.</p>
-          <p className="text-red-500 text-xs mt-1">{error}</p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 border border-red-300 text-red-700 text-xs font-medium rounded hover:bg-red-100 transition-colors"
-          >
-            Retry Connection
+      {/* ══════ MAIN COLUMN ══════ */}
+      <div className="main-col">
+
+        {/* ─── TOPBAR ─── */}
+        <div className="topbar">
+          <div className="topbar-search">
+            <Search className="search-icon" />
+            <input
+              type="text"
+              placeholder="Search colleges, courses..."
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+            />
+          </div>
+          <div className="topbar-spacer" />
+          <span className="topbar-stat">{loading ? 'Loading...' : thesisStatement}</span>
+          <button onClick={() => setDarkMode(d => !d)} className="theme-btn">
+            {darkMode
+              ? <><Sun style={{ width: 13, height: 13, color: '#FCD34D' }} /><span>Light</span></>
+              : <><Moon style={{ width: 13, height: 13 }} /><span>Dark</span></>}
           </button>
         </div>
-      )}
 
-      {!loading && !error && currentView === 'explorer' && (
-        <>
-          {/* FILTER BAR */}
-          <section className="bg-white/95 border border-purple-100 rounded-2xl p-6 mb-8 shadow-sm backdrop-blur-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs font-semibold text-purple-700 uppercase tracking-wider">
-                Filters
-              </h2>
-              {activeFilterCount > 0 && (
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-purple-700 bg-purple-50 px-3 py-1 rounded-lg font-medium">
-                    {activeFilterCount} active {activeFilterCount === 1 ? 'filter' : 'filters'}
-                  </span>
-                  <button 
-                    onClick={handleClearFilters}
-                    className="text-xs text-accent-700 hover:text-accent-800 hover:underline flex items-center gap-1 font-medium transition-colors"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                    Clear all
+        {/* ─── PAGE CONTENT ─── */}
+        <div className="page-content">
+
+          {/* Loading */}
+          {loading && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '1rem' }}>
+              <div style={{ width: 40, height: 40, border: '3px solid #7C3AED', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Loading institutional data...</p>
+              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 14, padding: '1.5rem', textAlign: 'center', maxWidth: 480, margin: '3rem auto' }}>
+              <AlertTriangle style={{ width: 32, height: 32, color: '#EF4444', margin: '0 auto 0.75rem' }} />
+              <p style={{ fontSize: '0.8rem', fontWeight: 600, color: '#B91C1C' }}>Failed to load college data</p>
+              <p style={{ fontSize: '0.7rem', color: '#EF4444', marginTop: 4 }}>{error}</p>
+              <button onClick={() => window.location.reload()} style={{ marginTop: '1rem', padding: '0.4rem 1rem', border: '1px solid #FECACA', background: '#fff', color: '#B91C1C', borderRadius: 8, fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* ══════ EXPLORER VIEW ══════ */}
+          {!loading && !error && currentView === 'explorer' && (
+            <div className="page-grid">
+
+              {/* ── Left/Main Column ── */}
+              <div>
+
+                {/* HERO BANNER */}
+                <div className="hero-banner">
+                  <div className="hero-text" style={{ position: 'relative', zIndex: 1 }}>
+                    <h2>Explore Top Colleges in <span>Tamil Nadu</span></h2>
+                    <p>Discover {totalCollegesCount}+ colleges, {courseStats.total_courses}+ courses and accreditation data to shape informed decisions.</p>
+                    <div className="hero-btns">
+                      <button className="hero-btn-primary" onClick={() => scrollToSection('college-grid-section')}>🏛️ Explore Colleges</button>
+                      <button className="hero-btn-secondary" onClick={() => scrollToSection('filter-bar-section')}>📚 Explore Courses</button>
+                    </div>
+                  </div>
+                  <div className="hero-stats">
+                    <div className="hero-stat-card">
+                      <div className="stat-num">{totalCollegesCount}+</div>
+                      <div className="stat-label">Colleges</div>
+                    </div>
+                    <div className="hero-stat-card">
+                      <div className="stat-num">{courseStats.total_courses}+</div>
+                      <div className="stat-label">Courses</div>
+                    </div>
+                    <div className="hero-stat-card">
+                      <div className="stat-num">{rankedCountTotal}</div>
+                      <div className="stat-label">NIRF Ranked</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* CATEGORY PILLS */}
+                <div className="category-bar" id="category-bar">
+                  <button onClick={() => handleCategorySelect('All')} className={`cat-pill${activeCategoryTab === 'All' ? ' active' : ''}`}>
+                    🏛️ All Colleges <span className="pill-count">{colleges.length}</span>
                   </button>
-                </div>
-              )}
-            </div>
-
-            {/* Filters Input Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-              {/* Search text */}
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-slate-400" />
-                <input 
-                  type="text"
-                  placeholder="Search college..."
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none placeholder-slate-400"
-                />
-              </div>
-
-              {/* Category */}
-              <div>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none bg-white text-slate-700"
-                >
-                  <option value="">All Categories</option>
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Location (Normalized) */}
-              <div>
-                <select
-                  value={selectedLocation}
-                  onChange={(e) => setSelectedLocation(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none bg-white text-slate-700"
-                >
-                  <option value="">All Regions</option>
-                  {locations.map(loc => (
-                    <option key={loc} value={loc}>{loc}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* NAAC Grade */}
-              <div>
-                <select
-                  value={selectedNaac}
-                  onChange={(e) => setSelectedNaac(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none bg-white text-slate-700"
-                >
-                  <option value="">All NAAC Grades</option>
-                  {naacGrades.map(grade => (
-                    <option key={grade} value={grade}>{grade}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Autonomous Status */}
-              <div>
-                <select
-                  value={selectedAutonomous}
-                  onChange={(e) => setSelectedAutonomous(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none bg-white text-slate-700"
-                >
-                  <option value="">All Autonomy</option>
-                  {autonomousStatuses.map(status => (
-                    <option key={status} value={status}>Autonomous: {status}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* NIRF Rank Status */}
-              <div>
-                <select
-                  value={selectedNirf}
-                  onChange={(e) => setSelectedNirf(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none bg-white text-slate-700"
-                >
-                  <option value="">All NIRF Status</option>
-                  <option value="ranked">NIRF Ranked</option>
-                  <option value="unranked">Unranked</option>
-                </select>
-              </div>
-
-              {/* University Affiliation Category */}
-              <div>
-                <select
-                  value={selectedUnivCategory}
-                  onChange={(e) => setSelectedUnivCategory(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none bg-white text-slate-700"
-                >
-                  <option value="">All Affiliations</option>
-                  {universityCategories.map(univ => (
-                    <option key={univ} value={univ}>{univ}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Hostel Facility */}
-              <div>
-                <select
-                  value={selectedHostel}
-                  onChange={(e) => setSelectedHostel(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none bg-white text-slate-700"
-                >
-                  <option value="">All Hostels</option>
-                  {hostelFacilities.map(hostel => (
-                    <option key={hostel} value={hostel}>{hostel}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </section>
-
-          {/* LIVE METRICS CARDS */}
-          <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 animate-in fade-in duration-300">
-            {[
-              { title: 'Colleges Shown', value: totalFiltered, sub: `/ ${totalCollegesCount}`, caption: 'Institutions visible in selection', gradient: 'from-orange-400 via-rose-500 to-pink-500', icon: Building2 },
-              { title: 'NAAC Accredited', value: `${pctAccredited}%`, sub: `(${accreditedCount} cols)`, caption: 'Accredited by NAAC standards', gradient: 'from-sky-500 to-blue-700', icon: Award },
-              { title: 'Autonomous Status', value: `${pctAutonomous}%`, sub: `(${autonomousCount} cols)`, caption: 'Colleges marked autonomous', gradient: 'from-emerald-400 to-teal-600', icon: CheckCircle },
-              { title: 'NIRF Ranked', value: filteredColleges.filter(c => c.nirf_rank).length, sub: 'colleges', caption: 'Ranked nationally in selection', gradient: 'from-violet-500 to-purple-700', icon: Trophy },
-              { title: 'Hostel Facility', value: `${pctHostel}%`, sub: `(${hostelCount} cols)`, caption: 'Colleges with residential housing', gradient: 'from-fuchsia-500 to-pink-700', icon: Home },
-              { title: 'Top Affiliation', value: topUnivCategory.length > 10 ? topUnivCategory.split(' ')[0] : topUnivCategory, sub: '', caption: topUnivCategory, gradient: 'from-amber-400 to-orange-500', icon: GraduationCap }
-            ].map((card, index) => {
-              const Icon = card.icon;
-              return (
-                <div key={index} className={`relative overflow-hidden rounded-[22px] p-5 text-white shadow-[0_16px_40px_-20px_rgba(127,90,240,0.45)] bg-gradient-to-br ${card.gradient} transition-transform duration-350 hover:scale-[1.02]`}>
-                  <div className="absolute -bottom-8 -right-8 h-24 w-24 rounded-full bg-white/10" />
-                  <div className="absolute -top-4 -left-4 h-16 w-16 rounded-full bg-white/10" />
-                  <div className="relative z-10">
-                    <div className="mb-4 flex items-center justify-between">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.20em] text-white/95">{card.title}</span>
-                      <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white/20">
-                        <Icon className="h-4.5 w-4.5" />
-                      </div>
-                    </div>
-                    <div className="flex items-end gap-1.5">
-                      <span className="text-2xl font-bold tracking-tight">{card.value}</span>
-                      <span className="pb-0.5 text-xs text-white/85">{card.sub}</span>
-                    </div>
-                    <p className="mt-2 text-xs text-white/95 truncate" title={card.caption}>{card.caption}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </section>
-
-          {/* CHARTS CONTAINER */}
-          {totalFiltered > 0 ? (
-            <section className="mb-10 grid grid-cols-1 gap-6 lg:grid-cols-2 animate-in fade-in duration-300">
-              {/* Chart 1: Categories */}
-              <div className="flex flex-col rounded-[24px] border border-purple-100 bg-white p-6 shadow-[0_16px_40px_-22px_rgba(15,23,42,0.25)]">
-                <div className="mb-5 flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-base font-semibold text-slate-900">
-                      {activeCategoryTab === 'All' ? 'Count of Colleges by Category' : `Colleges by Region (${activeCategoryTab})`}
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {activeCategoryTab === 'All' ? 'Distribution across major academic disciplines' : `Geographic distribution of ${activeCategoryTab} institutions`}
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700">Live view</span>
-                </div>
-                <div className="h-64 w-full flex-grow">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart 
-                      data={activeCategoryTab === 'All' ? categoryChartData : regionChartData} 
-                      layout="vertical" 
-                      margin={{ top: 5, right: 24, left: 10, bottom: 5 }}
+                  {Object.entries(
+                    colleges.reduce((acc, c) => { acc[c.college_category] = (acc[c.college_category] || 0) + 1; return acc; }, {})
+                  ).sort((a, b) => b[1] - a[1]).map(([catName, count]) => (
+                    <button
+                      key={catName}
+                      onClick={() => handleCategorySelect(catName)}
+                      className={`cat-pill${activeCategoryTab === catName ? ' active' : ''}`}
                     >
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F3F1F7" />
-                      <XAxis type="number" hide />
-                      <YAxis 
-                        dataKey="name" 
-                        type="category" 
-                        width={120} 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fontSize: 11, fill: '#64748b' }} 
-                      />
-                      <Tooltip cursor={{ fill: '#F8F5FF' }} contentStyle={{ background: '#fff', border: '1px solid #E9E2F7', borderRadius: '10px', fontSize: '12px' }} />
-                      <Bar dataKey="value" fill="#8B5CF6" radius={[0, 8, 8, 0]} barSize={16} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                      {getCategoryEmoji(catName)} {catName} <span className="pill-count">{count}</span>
+                    </button>
+                  ))}
                 </div>
-              </div>
 
-              {/* Chart 2: NAAC Grades */}
-              <div className="flex flex-col rounded-[24px] border border-purple-100 bg-white p-6 shadow-[0_16px_40px_-22px_rgba(15,23,42,0.25)]">
-                <div className="mb-5 flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-base font-semibold text-slate-900">Count of Colleges by NAAC Grade</h3>
-                    <p className="mt-1 text-sm text-slate-500">Accreditation grade counts color-coded by performance tier</p>
-                  </div>
-                  <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700">Tiered</span>
-                </div>
-                <div className="h-64 w-full flex-grow">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={naacChartData} layout="vertical" margin={{ top: 5, right: 24, left: 10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F3F1F7" />
-                      <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" width={100} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
-                      <Tooltip cursor={{ fill: '#F8F5FF' }} contentStyle={{ background: '#fff', border: '1px solid #E9E2F7', borderRadius: '10px', fontSize: '12px' }} />
-                      <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={16}>
-                        {naacChartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={getNaacColor(entry.name)} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="mt-3 flex flex-wrap justify-end gap-4 text-[11px] font-medium text-slate-500">
-                  <div className="flex items-center gap-1"><div className="h-2 w-2 rounded-full bg-emerald-500"></div><span>Tier A</span></div>
-                  <div className="flex items-center gap-1"><div className="h-2 w-2 rounded-full bg-amber-500"></div><span>Tier B</span></div>
-                  <div className="flex items-center gap-1"><div className="h-2 w-2 rounded-full bg-slate-500"></div><span>Tier C/D/Other</span></div>
-                </div>
-              </div>
-
-              {/* Chart 3: Hostel Facilities */}
-              <div className="flex flex-col rounded-[24px] border border-purple-100 bg-white p-6 shadow-[0_16px_40px_-22px_rgba(15,23,42,0.25)]">
-                <div className="mb-5 flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-base font-semibold text-slate-900">Hostel Facility Distribution</h3>
-                    <p className="mt-1 text-sm text-slate-500">Breakdown of student residential options</p>
-                  </div>
-                  <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700">Residential</span>
-                </div>
-                <div className="h-64 w-full flex-grow flex items-center justify-center">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={hostelChartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={75}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {hostelChartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={HOSTEL_COLORS[entry.name] || '#A78BFA'} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => [`${value} colleges`, 'Count']} contentStyle={{ background: '#fff', border: '1px solid #E9E2F7', borderRadius: '10px', fontSize: '12px' }} />
-                      <Legend verticalAlign="bottom" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '10px', color: '#64748b' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Chart 4: Top University Affiliations */}
-              <div className="flex flex-col rounded-[24px] border border-purple-100 bg-white p-6 shadow-[0_16px_40px_-22px_rgba(15,23,42,0.25)]">
-                <div className="mb-5 flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-base font-semibold text-slate-900">Top University Affiliations</h3>
-                    <p className="mt-1 text-sm text-slate-500">Distribution across governing universities</p>
-                  </div>
-                  <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700">Affiliations</span>
-                </div>
-                <div className="h-64 w-full flex-grow">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={univChartData} layout="vertical" margin={{ top: 5, right: 24, left: 10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F3F1F7" />
-                      <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" width={140} axisLine={false} tickLine={false} tickFormatter={(tick) => tick.length > 22 ? tick.substring(0, 19) + '...' : tick} tick={{ fontSize: 9, fill: '#64748b' }} />
-                      <Tooltip cursor={{ fill: '#F8F5FF' }} contentStyle={{ background: '#fff', border: '1px solid #E9E2F7', borderRadius: '10px', fontSize: '12px' }} />
-                      <Bar dataKey="value" fill="#3B82F6" radius={[0, 8, 8, 0]} barSize={16} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </section>
-          ) : null}
-
-          {/* COLLEGES GRID SECTION */}
-          <section className="mb-12">
-            {filteredColleges.some(c => c.nirf_rank) && (
-              <div className="mb-8 rounded-[24px] border border-purple-100 bg-gradient-to-r from-violet-50 via-white to-fuchsia-50 p-5 shadow-[0_16px_40px_-22px_rgba(127,90,240,0.45)]">
-                <div className="mb-4 flex items-center gap-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-100">
-                    <Trophy className="h-5 w-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-900">NIRF Ranked Leaders</h3>
-                    <p className="mt-0.5 text-xs text-slate-500">Top performing institutions ranked nationally in the current view</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {filteredColleges
-                    .filter(c => c.nirf_rank)
-                    .sort((a, b) => a.nirf_rank - b.nirf_rank)
-                    .map(college => (
-                      <div key={college.college_id} onClick={() => setSelectedCollege(college)} className="flex cursor-pointer items-center justify-between rounded-2xl border border-purple-100 bg-white p-3.5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-purple-300">
-                        <div className="min-w-0 pr-2">
-                          <h4 className="truncate text-xs font-semibold text-slate-800">{college.college_name}</h4>
-                          <span className="mt-0.5 block text-[10px] uppercase tracking-[0.2em] text-slate-400">{college.college_category}</span>
-                        </div>
-                        <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700">{college.nirf_rank_raw}</span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-
-            <div className="mb-6 flex flex-wrap items-baseline justify-between gap-2 border-b border-purple-100 pb-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-900">Registry Entries</h3>
-              <span className="text-xs text-slate-500">Showing {totalFiltered} of {totalCollegesCount} institutions</span>
-            </div>
-
-            {totalFiltered > 0 ? (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {filteredColleges.map((college) => (
-                  <div key={college.college_id} onClick={() => setSelectedCollege(college)} className="group flex cursor-pointer flex-col justify-between rounded-[22px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_-22px_rgba(15,23,42,0.35)] transition-all duration-200 hover:-translate-y-1 hover:border-purple-300 hover:shadow-[0_20px_45px_-20px_rgba(127,90,240,0.35)] animate-in fade-in duration-200">
-                    <div>
-                      <div className="mb-3 flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-purple-700">{college.college_category}</span>
-                        <span className="flex items-center gap-1 text-xs text-slate-500">
-                          <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                          {college.location_normalized}
-                        </span>
-                      </div>
-                      <h4 className="min-h-[42px] text-sm font-semibold text-slate-800 transition-colors group-hover:text-purple-700 leading-snug">{college.college_name}</h4>
-                      <p className="text-[11px] text-slate-400 mt-2 truncate italic" title={college.university_category}>
-                        {college.university_category}
-                      </p>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
-                      <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${getNaacBadgeClass(college.naac_grade)}`}>NAAC: {college.naac_grade}</span>
-                      {college.autonomous === 'Yes' && (
-                        <span className="rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-[10px] font-semibold text-purple-700">Autonomous</span>
-                      )}
-                      {college.autonomous === 'Unknown' && (
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-medium text-slate-500">Autonomy: Unknown</span>
-                      )}
-                      {college.hostel_facility && college.hostel_facility !== 'No Hostel Found' && (
-                        <span className="flex items-center gap-1 rounded-full border border-pink-200 bg-pink-50 px-2.5 py-1 text-[10px] font-semibold text-pink-700">
-                          <Home className="h-3 w-3" /> {college.hostel_facility}
+                {/* FILTER BAR */}
+                <div className="filter-bar" id="filter-bar-section">
+                  <div className="filter-bar-header">
+                    <span className="filter-bar-title">🔍 Filters</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                      {activeFilterCount > 0 && (
+                        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#7C3AED', background: 'var(--accent-light)', padding: '2px 10px', borderRadius: 999 }}>
+                          {activeFilterCount} active
                         </span>
                       )}
-                      {college.nirf_rank_raw && college.nirf_rank_raw !== 'Not Ranked' && (
-                        <span className="flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
-                          <Trophy className="h-3 w-3" />NIRF: {college.nirf_rank_raw}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-[24px] border border-dashed border-purple-200 bg-white/80 py-16 px-4 text-center shadow-sm">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-purple-200 bg-purple-50">
-                  <HelpCircle className="h-6 w-6 text-purple-700" />
-                </div>
-                <h4 className="text-sm font-semibold text-slate-900">No institutions match the filter combination</h4>
-                <p className="mx-auto mt-1 max-w-md text-xs text-slate-500">Try adjusting or clearing your search queries and dropdown values to find the registries you are looking for.</p>
-                <button onClick={handleClearFilters} className="mt-5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all duration-200 hover:border-purple-300 hover:text-purple-700">Clear all filters</button>
-              </div>
-            )}
-          </section>
-        </>
-      )}
-
-      {/* ADMIN PANEL */}
-      {!loading && !error && currentView === 'admin' && (
-        <section className="animate-in fade-in duration-200 animate-slide-in-to-top">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* LEFT SIDEBAR: COLLEGE LIST */}
-            <div className="lg:col-span-4 bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[750px]">
-              <div className="mb-4">
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                  Select College to Edit
-                </h3>
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <input 
-                    type="text"
-                    placeholder="Search by name..."
-                    value={adminSearchText}
-                    onChange={(e) => setAdminSearchText(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none placeholder-slate-400 text-slate-800"
-                  />
-                </div>
-              </div>
-
-              {/* College Scrollable List */}
-              <div className="overflow-y-auto space-y-1 flex-grow pr-1 divide-y divide-slate-100 max-h-[600px]">
-                {colleges
-                  .filter(c => c.college_name.toLowerCase().includes(adminSearchText.toLowerCase()))
-                  .map(college => {
-                    const isSelected = selectedAdminCollege?.college_id === college.college_id;
-                    return (
                       <button
-                        key={college.college_id}
-                        type="button"
-                        onClick={() => handleSelectAdminCollege(college)}
-                        className={`w-full text-left p-3 rounded-md transition-all flex items-center justify-between group ${
-                          isSelected 
-                            ? 'bg-accent-50/80 border-l-4 border-accent-600 text-accent-900 font-medium' 
-                            : 'hover:bg-slate-50 text-slate-700 border-l-4 border-transparent'
-                        }`}
+                        onClick={handleClearFilters}
+                        title="Clear all filters"
+                        style={{ fontSize: '0.68rem', color: activeFilterCount > 0 ? '#7C3AED' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: '1px solid var(--card-border)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', transition: 'all 0.15s' }}
                       >
-                        <div className="min-w-0 pr-2">
-                          <h4 className={`text-xs font-semibold truncate ${isSelected ? 'text-accent-900' : 'text-slate-800 group-hover:text-accent-800'}`}>
-                            {college.college_name}
-                          </h4>
-                          <div className="flex gap-2 items-center mt-1 text-[10px] text-slate-400">
-                            <span>ID: {college.college_id}</span>
-                            <span>•</span>
-                            <span className="truncate">{college.college_category}</span>
+                        <RotateCcw style={{ width: 11, height: 11 }} /> Reset
+                      </button>
+                    </div>
+                  </div>
+                  <div className="filter-grid">
+                    {/* Category — synced with pill bar */}
+                    <div>
+                      <select
+                        value={selectedCategory}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setSelectedCategory(val);
+                          setActiveCategoryTab(val || 'All');
+                        }}
+                        className="filter-select"
+                      >
+                        <option value="">All Categories</option>
+                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div><select value={selectedLocation} onChange={e => setSelectedLocation(e.target.value)} className="filter-select"><option value="">All Regions</option>{locations.map(l => <option key={l} value={l}>{l}</option>)}</select></div>
+                    <div><select value={selectedNaac} onChange={e => setSelectedNaac(e.target.value)} className="filter-select"><option value="">All NAAC Grades</option>{naacGrades.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
+                    <div><select value={selectedAutonomous} onChange={e => setSelectedAutonomous(e.target.value)} className="filter-select"><option value="">All Autonomy</option>{autonomousStatuses.map(s => <option key={s} value={s}>Autonomous: {s}</option>)}</select></div>
+                    <div><select value={selectedNirf} onChange={e => setSelectedNirf(e.target.value)} className="filter-select"><option value="">All NIRF Status</option><option value="ranked">NIRF Ranked</option><option value="unranked">Unranked</option></select></div>
+                    <div><select value={selectedUnivCategory} onChange={e => setSelectedUnivCategory(e.target.value)} className="filter-select"><option value="">All Affiliations</option>{universityCategories.map(u => <option key={u} value={u}>{u}</option>)}</select></div>
+                    <div><select value={selectedHostel} onChange={e => setSelectedHostel(e.target.value)} className="filter-select"><option value="">All Hostels</option>{hostelFacilities.map(h => <option key={h} value={h}>{h}</option>)}</select></div>
+                    {/* Course Level — purple accent, normal option color */}
+                    <div>
+                      <select value={selectedCourseLevel} onChange={e => setSelectedCourseLevel(e.target.value)} className="filter-select" style={{ color: selectedCourseLevel ? '#7C3AED' : 'var(--text-primary)', fontWeight: selectedCourseLevel ? 600 : 400 }}>
+                        <option value="" style={{ color: 'var(--text-primary)', fontWeight: 400 }}>All Course Levels</option>
+                        <option value="UG" style={{ color: '#1D4ED8', fontWeight: 600 }}>📘 UG — Undergraduate</option>
+                        <option value="PG" style={{ color: '#6D28D9', fontWeight: 600 }}>📗 PG — Postgraduate</option>
+                        <option value="Diploma" style={{ color: '#BE185D', fontWeight: 600 }}>📙 Diploma / Certificate</option>
+                        <option value="PhD" style={{ color: '#92400E', fontWeight: 600 }}>🎓 PhD — Research</option>
+                      </select>
+                    </div>
+                    {/* Course Name */}
+                    <div>
+                      <select value={selectedCourseName} onChange={e => setSelectedCourseName(e.target.value)} className="filter-select" style={{ color: selectedCourseName ? '#7C3AED' : 'var(--text-primary)', fontWeight: selectedCourseName ? 600 : 400 }}>
+                        <option value="" style={{ color: 'var(--text-primary)', fontWeight: 400 }}>All Courses ({uniqueCourseNames.length})</option>
+                        {uniqueCourseNames.map(n => <option key={n} value={n} style={{ color: 'var(--text-primary)', fontWeight: 400 }}>{n}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* LIVE METRICS — 6-up */}
+                <div className="metrics-row cols-6" style={{ marginBottom: '1rem' }}>
+                  {[
+                    { label: 'Colleges Shown', value: totalFiltered, sub: `/ ${totalCollegesCount}`, grad: 'linear-gradient(135deg,#F97316,#EC4899)', icon: Building2 },
+                    { label: 'NAAC Accredited', value: `${pctAccredited}%`, sub: `(${accreditedCount})`, grad: 'linear-gradient(135deg,#0EA5E9,#2563EB)', icon: Award },
+                    { label: 'Autonomous', value: `${pctAutonomous}%`, sub: `(${autonomousCount})`, grad: 'linear-gradient(135deg,#10B981,#0D9488)', icon: CheckCircle },
+                    { label: 'NIRF Ranked', value: filteredColleges.filter(c => c.nirf_rank).length, sub: 'colleges', grad: 'linear-gradient(135deg,#8B5CF6,#6D28D9)', icon: Trophy },
+                    { label: 'Hostel Facility', value: `${pctHostel}%`, sub: `(${hostelCount})`, grad: 'linear-gradient(135deg,#EC4899,#DB2777)', icon: Home },
+                    { label: 'Top Affiliation', value: topUnivCategory.length > 10 ? topUnivCategory.split(' ')[0] : topUnivCategory, sub: '', grad: 'linear-gradient(135deg,#F59E0B,#D97706)', icon: GraduationCap }
+                  ].map((card, i) => {
+                    const Icon = card.icon;
+                    return (
+                      <div key={i} className="metric-card" style={{ background: card.grad }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                          <span className="metric-card-label">{card.label}</span>
+                          <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Icon style={{ width: 13, height: 13 }} />
                           </div>
                         </div>
-                        <Edit3 className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-accent-600' : 'text-slate-300 group-hover:text-slate-500'}`} />
-                      </button>
+                        <div className="metric-card-value">{card.value}</div>
+                        {card.sub && <div className="metric-card-sub">{card.sub}</div>}
+                      </div>
                     );
                   })}
-                {colleges.filter(c => c.college_name.toLowerCase().includes(adminSearchText.toLowerCase())).length === 0 && (
-                  <div className="py-8 text-center text-xs text-slate-400">
-                    No colleges match your search.
+                </div>
+
+                {/* COURSE METRICS — 3-up */}
+                <div className="metrics-row cols-3" style={{ marginBottom: '1.25rem' }}>
+                  {[
+                    { label: 'Total Courses Offered', value: courseStats.total_courses, sub: 'Across selected colleges', grad: 'linear-gradient(135deg,#4F46E5,#7C3AED)', icon: GraduationCap },
+                    { label: 'Avg Courses / College', value: courseStats.avg_courses, sub: 'Mean course count', grad: 'linear-gradient(135deg,#0D9488,#0891B2)', icon: Award },
+                    { label: 'Highest Course Offering', value: courseStats.highest_course_college ? `${courseStats.highest_course_college.course_count} Courses` : 'N/A', sub: courseStats.highest_course_college?.college_name || '—', grad: 'linear-gradient(135deg,#BE185D,#9333EA)', icon: Trophy }
+                  ].map((card, i) => {
+                    const Icon = card.icon;
+                    return (
+                      <div key={i} className="metric-card" style={{ background: card.grad }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                          <span className="metric-card-label">{card.label}</span>
+                          <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Icon style={{ width: 13, height: 13 }} />
+                          </div>
+                        </div>
+                        <div className="metric-card-value">{card.value}</div>
+                        <div className="metric-card-sub" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.sub}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* CHARTS GRID */}
+                {totalFiltered > 0 && (
+                  <div className="charts-grid">
+                    {/* Chart 1 */}
+                    <div className="chart-card">
+                      <div className="chart-card-header">
+                        <div>
+                          <h3 className="chart-card-title">{activeCategoryTab === 'All' ? 'Colleges by Category' : `By Region (${activeCategoryTab})`}</h3>
+                          <p className="chart-card-sub">{activeCategoryTab === 'All' ? 'Distribution across disciplines' : 'Geographic distribution'}</p>
+                        </div>
+                        <span className="chart-pill">Live</span>
+                      </div>
+                      <div style={{ height: 210 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={activeCategoryTab === 'All' ? categoryChartData : regionChartData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--card-border)" />
+                            <XAxis type="number" hide />
+                            <YAxis dataKey="name" type="category" width={110} axisLine={false} tickLine={false} tickFormatter={t => t.length > 17 ? t.slice(0,14)+'…' : t} tick={{ fontSize: 9, fill: 'var(--text-secondary)' }} />
+                            <Tooltip cursor={{ fill: 'var(--accent-light)' }} contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 10, fontSize: 12 }} />
+                            <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={13}>
+                              {(activeCategoryTab === 'All' ? categoryChartData : regionChartData).map((_, i) => (
+                                <Cell key={i} fill={['#7C3AED','#4F46E5','#0EA5E9','#10B981','#F59E0B','#EC4899','#EF4444','#8B5CF6'][i % 8]} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    {/* Chart 2 */}
+                    <div className="chart-card">
+                      <div className="chart-card-header">
+                        <div><h3 className="chart-card-title">NAAC Grade Distribution</h3><p className="chart-card-sub">Accreditation grades spread</p></div>
+                        <span className="chart-pill">Grades</span>
+                      </div>
+                      <div style={{ height: 210 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={naacChartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--card-border)" />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: 'var(--text-secondary)' }} />
+                            <YAxis hide />
+                            <Tooltip contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 10, fontSize: 12 }} />
+                            <Bar dataKey="value" radius={[5, 5, 0, 0]} barSize={22}>
+                              {naacChartData.map((entry, i) => <Cell key={i} fill={getNaacColor(entry.name)} />)}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    {/* Chart 3 */}
+                    <div className="chart-card">
+                      <div className="chart-card-header">
+                        <div><h3 className="chart-card-title">Hostel Facility</h3><p className="chart-card-sub">Residential options breakdown</p></div>
+                        <span className="chart-pill">Residential</span>
+                      </div>
+                      <div style={{ height: 210, display: 'flex', alignItems: 'center' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={hostelChartData} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={4} dataKey="value">
+                              {hostelChartData.map((entry, i) => <Cell key={i} fill={HOSTEL_COLORS[entry.name] || '#A78BFA'} />)}
+                            </Pie>
+                            <Tooltip formatter={v => [`${v} colleges`, 'Count']} contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 10, fontSize: 12 }} />
+                            <Legend verticalAlign="bottom" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10, color: 'var(--text-secondary)' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    {/* Chart 4 */}
+                    <div className="chart-card">
+                      <div className="chart-card-header">
+                        <div><h3 className="chart-card-title">Top University Affiliations</h3><p className="chart-card-sub">Governing universities distribution</p></div>
+                        <span className="chart-pill">Affiliations</span>
+                      </div>
+                      <div style={{ height: 210 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={univChartData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--card-border)" />
+                            <XAxis type="number" hide />
+                            <YAxis dataKey="name" type="category" width={130} axisLine={false} tickLine={false} tickFormatter={t => t.length > 20 ? t.slice(0,17)+'…' : t} tick={{ fontSize: 9, fill: 'var(--text-secondary)' }} />
+                            <Tooltip contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 10, fontSize: 12 }} />
+                            <Bar dataKey="value" fill="#4F46E5" radius={[0, 6, 6, 0]} barSize={13} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    {/* Chart 5 — Course Level */}
+                    <div className="chart-card">
+                      <div className="chart-card-header">
+                        <div><h3 className="chart-card-title">Course Level Distribution</h3><p className="chart-card-sub">UG · PG · Diploma · PhD</p></div>
+                        <span className="chart-pill">Courses</span>
+                      </div>
+                      <div style={{ height: 210, display: 'flex', alignItems: 'center' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={Object.entries(courseStats.course_distribution || {}).map(([name, value]) => ({ name, value }))} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={4} dataKey="value">
+                              {['#3B82F6','#8B5CF6','#EC4899','#F59E0B'].map((color, i) => <Cell key={i} fill={color} />)}
+                            </Pie>
+                            <Tooltip formatter={v => [`${v} courses`, 'Count']} contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 10, fontSize: 12 }} />
+                            <Legend verticalAlign="bottom" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10, color: 'var(--text-secondary)' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
                   </div>
                 )}
-              </div>
-            </div>
 
-            {/* RIGHT PANEL: LIVE EDITOR */}
-            <div className="lg:col-span-8">
-              {!selectedAdminCollege ? (
-                /* EMPTY STATE */
-                <div className="bg-white/85 border border-slate-200 border-dashed rounded-lg py-32 px-4 text-center shadow-xs flex flex-col items-center justify-center min-h-[450px]">
-                  <div className="h-14 w-14 bg-accent-50 border border-accent-100 rounded-full flex items-center justify-center mb-4">
-                    <Database className="h-7 w-7 text-accent-700" />
-                  </div>
-                  <h4 className="text-sm font-bold text-slate-900 font-display">No College Selected for Editing</h4>
-                  <p className="text-xs text-slate-400 mt-1 max-w-sm">
-                    Select an institution from the registry list on the left to start editing its record values in the database.
-                  </p>
-                </div>
-              ) : (
-                /* EDITOR FORM */
-                <form 
-                  onSubmit={handleSave} 
-                  className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden animate-in fade-in zoom-in-99 duration-150"
-                >
-                  {/* Editor Header */}
-                  <div className="bg-slate-50 border-b border-slate-100 p-5 flex justify-between items-center">
-                    <div>
-                      <span className="text-[10px] font-semibold text-accent-700 tracking-wider uppercase block mb-1">
-                        Editing College ID: {selectedAdminCollege.college_id}
-                      </span>
-                      <h3 className="text-base font-bold text-slate-900 font-display leading-tight">
-                        {formState.college_name || 'Unnamed Institution'}
-                      </h3>
+                {/* NIRF LEADERS */}
+                {filteredColleges.some(c => c.nirf_rank) && (
+                  <div className="nirf-leaders">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                      <div style={{ width: 30, height: 30, borderRadius: 9, background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Trophy style={{ width: 14, height: 14, color: '#D97706' }} />
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>NIRF Ranked Leaders</h3>
+                        <p style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', margin: 0 }}>Top performing institutions in current view</p>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedAdminCollege(null);
-                        setSaveStatus(null);
-                      }}
-                      className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded transition-all"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
+                    <div className="nirf-leaders-grid">
+                      {filteredColleges.filter(c => c.nirf_rank).sort((a, b) => a.nirf_rank - b.nirf_rank).map(college => (
+                        <div key={college.college_id} onClick={() => setSelectedCollege(college)} className="nirf-leader-item">
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <h4 style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{college.college_name}</h4>
+                            <span style={{ fontSize: '0.58rem', color: 'var(--text-muted)' }}>{college.college_category} · {college.course_count} Courses</span>
+                          </div>
+                          <span style={{ fontSize: '0.62rem', fontWeight: 700, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', borderRadius: 999, padding: '1px 7px', flexShrink: 0 }}>{college.nirf_rank_raw}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* COLLEGE GRID */}
+                <div id="college-grid-section">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.875rem' }}>
+                    <h3 style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Registry Entries</h3>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Showing {totalFiltered} of {totalCollegesCount}</span>
                   </div>
 
-                  {/* Save Status Alert Banner */}
-                  {saveStatus && (
-                    <div className={`p-4 border-b text-xs font-semibold flex items-center gap-2 ${
-                      saveStatus === 'success' 
-                        ? 'bg-emerald-50 border-emerald-100 text-emerald-800' 
-                        : 'bg-red-50 border-red-100 text-red-800'
-                    }`}>
-                      {saveStatus === 'success' ? (
-                        <Check className="h-4.5 w-4.5 text-emerald-600 shrink-0" />
-                      ) : (
-                        <AlertTriangle className="h-4.5 w-4.5 text-red-600 shrink-0" />
-                      )}
-                      <span>{saveMessage}</span>
+                  {totalFiltered > 0 ? (
+                    <div className="college-grid">
+                      {filteredColleges.map(college => (
+                        <div key={college.college_id} onClick={() => setSelectedCollege(college)} className="college-card">
+                          <div className="college-card-header">
+                            <div className="college-card-icon">{getCategoryEmoji(college.college_category)}</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <h4 className="college-card-title">{college.college_name}</h4>
+                              <div className="college-card-meta">
+                                <MapPin style={{ width: 11, height: 11 }} />{college.location_normalized}
+                              </div>
+                            </div>
+                            <span className={`naac-badge ${getNaacBadgeClass(college.naac_grade)}`} style={{ border: '1px solid', borderRadius: 999, padding: '1px 7px', fontSize: '0.63rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                              {college.naac_grade}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '0.62rem', color: 'var(--text-muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontStyle: 'italic' }}>{college.university_category}</p>
+                          <div className="college-card-tags">
+                            {college.autonomous === 'Yes' && <span className="tag" style={{ background: 'var(--accent-light)', color: 'var(--accent)', borderColor: '#DDD6FE' }}>Autonomous</span>}
+                            {college.hostel_facility && college.hostel_facility !== 'No Hostel Found' && (
+                              <span className="tag" style={{ background: '#FDF2F8', color: '#9D174D', borderColor: '#FBCFE8', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <Home style={{ width: 9, height: 9 }} />{college.hostel_facility}
+                              </span>
+                            )}
+                            {college.nirf_rank_raw && college.nirf_rank_raw !== 'Not Ranked' && (
+                              <span className="tag" style={{ background: '#FFFBEB', color: '#92400E', borderColor: '#FDE68A', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <Trophy style={{ width: 9, height: 9 }} />{college.nirf_rank_raw}
+                              </span>
+                            )}
+                            <span className="tag" style={{ background: '#EEF2FF', color: '#3730A3', borderColor: '#C7D2FE' }}>📚 {college.course_count} Courses</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state">
+                      <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--accent-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.875rem' }}>
+                        <HelpCircle style={{ width: 24, height: 24, color: 'var(--accent)' }} />
+                      </div>
+                      <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.375rem' }}>No institutions match</h4>
+                      <p style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', margin: '0 0 1rem' }}>Try adjusting or clearing your filters.</p>
+                      <button onClick={handleClearFilters} className="btn-ghost">Clear all filters</button>
                     </div>
                   )}
+                </div>
+              </div>
 
-                  {/* Form Grid Body */}
-                  <div className="p-6 space-y-6">
-                    {/* SECTION 1: Core Details */}
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 mb-4">
-                        1. Institutional Identity
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="md:col-span-2">
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">College Name *</label>
-                          <input 
-                            type="text"
-                            required
-                            value={formState.college_name}
-                            onChange={(e) => setFormState({...formState, college_name: e.target.value})}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none text-slate-800"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">Category *</label>
-                          <input 
-                            type="text"
-                            required
-                            value={formState.college_category}
-                            onChange={(e) => setFormState({...formState, college_category: e.target.value})}
-                            placeholder="e.g. Engineering, Arts & Science"
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none text-slate-800"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">Principal Name</label>
-                          <input 
-                            type="text"
-                            value={formState.principal_name}
-                            onChange={(e) => setFormState({...formState, principal_name: e.target.value})}
-                            placeholder="e.g. Dr. Jane Doe"
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none text-slate-800"
-                          />
-                        </div>
+              {/* ── RIGHT PANEL ── */}
+              <div className="right-panel">
+                <div className="panel-card">
+                  <h3 className="panel-card-title">⚡ Quick Actions</h3>
+                  {[
+                    { icon: '🏛️', label: 'Find Colleges', sub: 'Search & Explore', color: '#EDE9FE', action: () => scrollToSection('college-grid-section') },
+                    { icon: '📚', label: 'Find Courses', sub: 'Browse All Courses', color: '#E0F2FE', action: () => scrollToSection('filter-bar-section') },
+                    { icon: '⚖️', label: 'Compare Colleges', sub: 'Compare & Decide', color: '#FEF3C7', action: () => setCurrentView('admin') },
+                    { icon: '❤️', label: 'My Shortlist', sub: 'Your Saved Colleges', color: '#FCE7F3', action: () => { setSelectedNaac('A++'); scrollToSection('college-grid-section'); } }
+                  ].map((item, i) => (
+                    <div key={i} className="quick-action-item" onClick={item.action} style={{ cursor: 'pointer' }}>
+                      <div className="qa-icon" style={{ background: item.color }}>{item.icon}</div>
+                      <div className="qa-text">
+                        <strong>{item.label}</strong>
+                        <span>{item.sub}</span>
                       </div>
+                      <ExternalLink style={{ width: 12, height: 12, color: 'var(--text-muted)', flexShrink: 0 }} />
                     </div>
+                  ))}
+                </div>
 
-                    {/* SECTION 2: Academic & Campus Details */}
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 mb-4">
-                        2. Academic & Campus Details
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">NAAC Grade *</label>
-                          <select
-                            value={formState.naac_grade}
-                            onChange={(e) => setFormState({...formState, naac_grade: e.target.value})}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none bg-white text-slate-800"
-                          >
-                            {naacGrades.map(g => (
-                              <option key={g} value={g}>{g}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">Autonomous Status *</label>
-                          <select
-                            value={formState.autonomous}
-                            onChange={(e) => setFormState({...formState, autonomous: e.target.value})}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none bg-white text-slate-800"
-                          >
-                            <option value="Yes">Yes</option>
-                            <option value="No">No</option>
-                            <option value="Unknown">Unknown</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">Hostel Facility *</label>
-                          <select
-                            value={formState.hostel_facility}
-                            onChange={(e) => setFormState({...formState, hostel_facility: e.target.value})}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none bg-white text-slate-800"
-                          >
-                            {hostelFacilities.map(h => (
-                              <option key={h} value={h}>{h}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">NIRF Rank Description</label>
-                          <input 
-                            type="text"
-                            value={formState.nirf_rank_raw}
-                            onChange={(e) => setFormState({...formState, nirf_rank_raw: e.target.value})}
-                            placeholder="e.g. (Engineering: 151-200) or 84"
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none text-slate-800"
-                          />
-                        </div>
+                <div className="panel-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.625rem', alignItems: 'center' }}>
+                    <h3 className="panel-card-title" style={{ margin: 0 }}>🏆 Top Colleges</h3>
+                    <button className="view-all-btn" onClick={() => { setSelectedNaac('A'); scrollToSection('college-grid-section'); }}>View All</button>
+                  </div>
+                  {filteredColleges.filter(c => ['A++','A+','A'].includes(c.naac_grade)).slice(0, 8).map(college => (
+                    <div key={college.college_id} className="top-college-item" onClick={() => setSelectedCollege(college)}>
+                      <div className="top-college-avatar">{college.naac_grade}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="top-college-name">{college.college_name}</div>
+                        <span className="top-college-loc">{college.location_normalized}</span>
                       </div>
-                      <div className="mt-4">
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">University Category / Affiliation *</label>
-                        <input 
-                          type="text"
-                          required
-                          value={formState.university_category}
-                          onChange={(e) => setFormState({...formState, university_category: e.target.value})}
-                          placeholder="e.g. University of Madras (Affiliated)"
-                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none text-slate-800"
-                        />
-                      </div>
+                      <span style={{ fontSize: '0.6rem', fontWeight: 700, borderRadius: 999, padding: '1px 6px', border: '1px solid', flexShrink: 0 }} className={getNaacBadgeClass(college.naac_grade)}>{college.naac_grade}</span>
                     </div>
+                  ))}
+                  {filteredColleges.filter(c => ['A++','A+','A'].includes(c.naac_grade)).length === 0 && (
+                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem 0' }}>No A-grade colleges in current filter</p>
+                  )}
+                </div>
 
-                    {/* SECTION 3: Location Details */}
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 mb-4">
-                        3. Geography
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">Raw Location *</label>
-                          <input 
-                            type="text"
-                            required
-                            value={formState.location_raw}
-                            onChange={(e) => setFormState({...formState, location_raw: e.target.value})}
-                            placeholder="e.g. Guindy, Chennai"
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none text-slate-800"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">Normalized Location / Region *</label>
-                          <input 
-                            type="text"
-                            required
-                            value={formState.location_normalized}
-                            onChange={(e) => setFormState({...formState, location_normalized: e.target.value})}
-                            placeholder="e.g. Chennai"
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none text-slate-800"
-                          />
-                        </div>
-                      </div>
+                <div className="panel-card">
+                  <h3 className="panel-card-title">📊 Dataset Stats</h3>
+                  {[
+                    { label: 'Total Institutions', value: totalCollegesCount, color: '#7C3AED' },
+                    { label: 'NIRF Ranked', value: rankedCountTotal, color: '#F59E0B' },
+                    { label: 'Unique Courses', value: uniqueCourseNames.length, color: '#0EA5E9' },
+                    { label: 'Regions Covered', value: locations.length, color: '#10B981' }
+                  ].map((s, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0', borderBottom: i < 3 ? '1px solid var(--card-border)' : 'none' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{s.label}</span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 700, color: s.color }}>{s.value}</span>
                     </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
-                    {/* SECTION 4: Contact Information */}
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 mb-4">
-                        4. Contact & Online Presence
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">Website URL</label>
-                          <input 
-                            type="url"
-                            value={formState.website}
-                            onChange={(e) => setFormState({...formState, website: e.target.value})}
-                            placeholder="https://example.edu"
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none text-slate-800"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">Email Address</label>
-                          <input 
-                            type="email"
-                            value={formState.email}
-                            onChange={(e) => setFormState({...formState, email: e.target.value})}
-                            placeholder="admin@example.edu"
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none text-slate-800"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">Phone Number</label>
-                          <input 
-                            type="text"
-                            value={formState.phone}
-                            onChange={(e) => setFormState({...formState, phone: e.target.value})}
-                            placeholder="+91 44 1234567"
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded focus:border-accent-600 focus:outline-none text-slate-800"
-                          />
-                        </div>
-                      </div>
+          {/* ══════ ADMIN VIEW ══════ */}
+          {!loading && !error && currentView === 'admin' && (
+            <div>
+              <div style={{ marginBottom: '1.25rem' }}>
+                <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.25rem' }}>Registry Editor</h2>
+                <p style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', margin: 0 }}>Select a college to edit its NAAC, NIRF, contact and affiliation data.</p>
+              </div>
+              <div className="admin-panel">
+                {/* College List */}
+                <div className="panel-card" style={{ maxHeight: 700, display: 'flex', flexDirection: 'column', padding: 0 }}>
+                  <div style={{ padding: '1rem', borderBottom: '1px solid var(--card-border)' }}>
+                    <p style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', margin: '0 0 0.625rem' }}>Select College to Edit</p>
+                    <div className="filter-search-wrap">
+                      <Search className="filter-search-icon" />
+                      <input type="text" placeholder="Search by name..." value={adminSearchText} onChange={e => setAdminSearchText(e.target.value)} className="filter-input" style={{ width: '100%' }} />
                     </div>
                   </div>
+                  <div style={{ overflowY: 'auto', flex: 1 }}>
+                    {colleges.filter(c => c.college_name.toLowerCase().includes(adminSearchText.toLowerCase())).map(college => {
+                      const isSel = selectedAdminCollege?.college_id === college.college_id;
+                      return (
+                        <button key={college.college_id} type="button" onClick={() => handleSelectAdminCollege(college)} style={{ width: '100%', textAlign: 'left', padding: '0.625rem 1rem', background: isSel ? 'var(--accent-light)' : 'transparent', borderLeft: isSel ? '3px solid #7C3AED' : '3px solid transparent', border: 'none', borderBottom: '1px solid var(--card-border)', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <h4 style={{ fontSize: '0.72rem', fontWeight: 600, color: isSel ? '#7C3AED' : 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>{college.college_name}</h4>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>ID: {college.college_id} · {college.college_category}</span>
+                          </div>
+                          <span className={`naac-badge ${getNaacBadgeClass(college.naac_grade)}`} style={{ border: '1px solid', borderRadius: 999, padding: '1px 6px', fontSize: '0.6rem', fontWeight: 700, flexShrink: 0 }}>{college.naac_grade}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
-                  {/* Form Actions Footer */}
-                  <div className="bg-slate-50 border-t border-slate-100 p-4 flex justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectAdminCollege(selectedAdminCollege)}
-                      disabled={isSaving}
-                      className="px-4 py-2 border border-slate-200 hover:border-slate-300 bg-white text-xs font-semibold rounded text-slate-700 transition-all duration-200 shadow-sm hover:-translate-y-0.5 disabled:opacity-55"
-                    >
-                      Discard Edits
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSaving}
-                      className="px-5 py-2 bg-accent-700 hover:bg-accent-800 text-white text-xs font-bold rounded transition-all duration-200 shadow-sm flex items-center gap-2 hover:-translate-y-0.5 disabled:opacity-75 disabled:cursor-not-allowed"
-                    >
-                      {isSaving ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          Saving...
-                        </>
+                {/* Edit Form */}
+                <div className="panel-card" style={{ padding: 0 }}>
+                  {!selectedAdminCollege ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', textAlign: 'center' }}>
+                      <Database style={{ width: 40, height: 40, color: 'var(--text-muted)', marginBottom: '0.875rem' }} />
+                      <p style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', margin: '0 0 0.375rem' }}>No College Selected</p>
+                      <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>Select a college from the list to edit its details.</p>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSave}>
+                      <div style={{ padding: '1rem', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <p style={{ fontSize: '0.65rem', color: '#7C3AED', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 2px' }}>Editing: #{selectedAdminCollege.college_id}</p>
+                          <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{selectedAdminCollege.college_name}</h3>
+                        </div>
+                        {saveStatus === 'success' && (
+                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#059669', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Check style={{ width: 12, height: 12 }} /> Saved
+                          </span>
+                        )}
+                        {saveStatus === 'error' && (
+                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <AlertTriangle style={{ width: 12, height: 12 }} /> {saveMessage}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ padding: '1rem', overflowY: 'auto', maxHeight: 580 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.875rem' }}>
+                          {[
+                            { label: 'College Name', key: 'college_name', type: 'text', full: true },
+                            { label: 'College Category', key: 'college_category', type: 'text' },
+                            { label: 'Location (Raw)', key: 'location_raw', type: 'text' },
+                            { label: 'Location (Normalized)', key: 'location_normalized', type: 'text' },
+                            { label: 'Principal Name', key: 'principal_name', type: 'text' },
+                            { label: 'Website', key: 'website', type: 'text' },
+                            { label: 'Email', key: 'email', type: 'email' },
+                            { label: 'Phone', key: 'phone', type: 'text' }
+                          ].map(field => (
+                            <div key={field.key} style={field.full ? { gridColumn: '1 / -1' } : {}}>
+                              <label className="form-label">{field.label}</label>
+                              <input type={field.type} value={formState[field.key]} onChange={e => setFormState({ ...formState, [field.key]: e.target.value })} className="form-input" />
+                            </div>
+                          ))}
+                          <div>
+                            <label className="form-label">NAAC Grade</label>
+                            <select value={formState.naac_grade} onChange={e => setFormState({ ...formState, naac_grade: e.target.value })} className="form-input">
+                              {naacGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="form-label">Autonomous Status</label>
+                            <select value={formState.autonomous} onChange={e => setFormState({ ...formState, autonomous: e.target.value })} className="form-input">
+                              {['Yes', 'No', 'Unknown'].map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="form-label">NIRF Rank (numeric)</label>
+                            <input type="number" value={formState.nirf_rank} onChange={e => setFormState({ ...formState, nirf_rank: e.target.value })} className="form-input" placeholder="e.g. 45" />
+                          </div>
+                          <div>
+                            <label className="form-label">NIRF Rank (raw text)</label>
+                            <input type="text" value={formState.nirf_rank_raw} onChange={e => setFormState({ ...formState, nirf_rank_raw: e.target.value })} className="form-input" placeholder="e.g. #45" />
+                          </div>
+                          <div>
+                            <label className="form-label">University Category</label>
+                            <input type="text" value={formState.university_category} onChange={e => setFormState({ ...formState, university_category: e.target.value })} className="form-input" />
+                          </div>
+                          <div>
+                            <label className="form-label">Hostel Facility</label>
+                            <select value={formState.hostel_facility} onChange={e => setFormState({ ...formState, hostel_facility: e.target.value })} className="form-input">
+                              {hostelFacilities.map(h => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ padding: '0.875rem 1rem', borderTop: '1px solid var(--card-border)', background: 'var(--page-bg)', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                        <button type="button" onClick={() => handleSelectAdminCollege(selectedAdminCollege)} disabled={isSaving} className="btn-ghost">Discard Edits</button>
+                        <button type="submit" disabled={isSaving} className="btn-primary">
+                          {isSaving ? <><Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> Saving…</> : <><Save style={{ width: 13, height: 13 }} /> Save Changes</>}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>{/* end page-content */}
+      </div>{/* end main-col */}
+
+      {/* ══════ DETAIL MODAL ══════ */}
+      {selectedCollege && (
+        <div className="modal-overlay">
+          <div style={{ position: 'absolute', inset: 0 }} onClick={() => setSelectedCollege(null)} />
+          <div className="modal-box">
+            <div className="modal-header">
+              <div className="modal-category">{selectedCollege.college_category}</div>
+              <h3>{selectedCollege.college_name}</h3>
+              <button onClick={() => setSelectedCollege(null)} className="modal-close-btn" aria-label="Close">
+                <X style={{ width: 14, height: 14 }} />
+              </button>
+            </div>
+
+            <div className="modal-tabs">
+              {[
+                { id: 'overview', label: 'Overview', icon: Building2 },
+                { id: 'courses', label: 'Courses', icon: GraduationCap },
+                { id: 'contact', label: 'Contact', icon: Phone },
+                { id: 'analytics', label: 'Analytics', icon: Award, disabled: true }
+              ].map(tab => {
+                const TabIcon = tab.icon;
+                return (
+                  <button key={tab.id} disabled={tab.disabled} onClick={() => setModalTab(tab.id)} className={`modal-tab-btn${modalTab === tab.id ? ' active' : ''}`}>
+                    <TabIcon style={{ width: 12, height: 12 }} />{tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="modal-body">
+              {/* Overview */}
+              {modalTab === 'overview' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--card-border)' }}>
+                    <div>
+                      <span style={{ fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>NAAC Grade</span>
+                      <span className={`naac-badge ${getNaacBadgeClass(selectedCollege.naac_grade)}`} style={{ border: '1px solid', borderRadius: 999, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700 }}>{selectedCollege.naac_grade}</span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Autonomous</span>
+                      <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, fontSize: '0.65rem', fontWeight: 700, background: selectedCollege.autonomous === 'Yes' ? 'var(--accent-light)' : 'var(--page-bg)', color: selectedCollege.autonomous === 'Yes' ? 'var(--accent)' : 'var(--text-secondary)', border: '1px solid var(--card-border)' }}>{selectedCollege.autonomous}</span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>NIRF Rank</span>
+                      {selectedCollege.nirf_rank_raw && selectedCollege.nirf_rank_raw !== 'Not Ranked' ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#FFFBEB', color: '#92400E', border: '1px solid #FDE68A', borderRadius: 999, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700 }}>
+                          <Trophy style={{ width: 9, height: 9, color: '#D97706' }} />{selectedCollege.nirf_rank_raw}
+                        </span>
                       ) : (
-                        <>
-                          <Save className="h-3.5 w-3.5" />
-                          Save Changes
-                        </>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Unranked</span>
                       )}
-                    </button>
+                    </div>
                   </div>
-                </form>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--card-border)' }}>
+                    <div>
+                      <span style={{ fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>University Category</span>
+                      <span style={{ fontSize: '0.73rem', fontWeight: 600, color: 'var(--text-primary)' }}>{selectedCollege.university_category || 'Unknown'}</span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Hostel Facility</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: selectedCollege.hostel_facility === 'No Hostel Found' ? 'var(--page-bg)' : '#FDF2F8', color: selectedCollege.hostel_facility === 'No Hostel Found' ? 'var(--text-muted)' : '#9D174D', border: `1px solid ${selectedCollege.hostel_facility === 'No Hostel Found' ? 'var(--card-border)' : '#FBCFE8'}`, borderRadius: 999, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 600 }}>
+                        <Home style={{ width: 9, height: 9 }} />{selectedCollege.hostel_facility || 'No Hostel Found'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.625rem', paddingBottom: '1rem', borderBottom: '1px solid var(--card-border)' }}>
+                    <MapPin style={{ width: 14, height: 14, color: 'var(--text-muted)', marginTop: 2 }} />
+                    <div>
+                      <span style={{ fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Location</span>
+                      <p style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>
+                        {selectedCollege.location_raw}
+                        {selectedCollege.location_raw !== selectedCollege.location_normalized && (
+                          <span style={{ fontSize: '0.63rem', color: 'var(--text-muted)', display: 'block', fontWeight: 400 }}>(Region: {selectedCollege.location_normalized})</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ background: 'linear-gradient(135deg,#EEF2FF,#F5F3FF)', border: '1px solid #C7D2FE', borderRadius: 12, padding: '0.875rem' }}>
+                    <span style={{ fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#3730A3', display: 'block', marginBottom: '0.625rem' }}>Courses Summary</span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '0.375rem', textAlign: 'center' }}>
+                      {[{ label: 'Total', value: selectedCollege.course_count, color: '#3730A3' }, { label: 'UG', value: ugCount, color: '#1D4ED8' }, { label: 'PG', value: pgCount, color: '#6D28D9' }, { label: 'Dipl.', value: diplomaCount, color: '#BE185D' }, { label: 'PhD', value: phdCount, color: '#92400E' }].map((s, i) => (
+                        <div key={i} style={{ background: '#fff', borderRadius: 8, padding: '0.375rem 0.25rem', border: '1px solid #DDD6FE' }}>
+                          <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>{s.label}</span>
+                          <span style={{ fontSize: '1.1rem', fontWeight: 800, color: s.color, lineHeight: 1.2 }}>{s.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Courses Tab */}
+              {modalTab === 'courses' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--accent-light)', borderRadius: 10, padding: '0.625rem 0.875rem', border: '1px solid #DDD6FE' }}>
+                    <span style={{ fontSize: '0.73rem', fontWeight: 600, color: '#3730A3' }}>Total Offered Courses</span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, background: '#7C3AED', color: '#fff', padding: '2px 10px', borderRadius: 999 }}>{selectedCollege.course_count}</span>
+                  </div>
+                  {loadingCourses ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2.5rem 0', gap: '0.5rem' }}>
+                      <Loader2 style={{ width: 24, height: 24, color: '#7C3AED' }} className="animate-spin" />
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Loading courses...</span>
+                    </div>
+                  ) : selectedCollegeCourses.length === 0 ? (
+                    <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.73rem', fontStyle: 'italic' }}>No courses found.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                      {['UG','PG','Diploma','PhD'].map(lvl => {
+                        const lvlCourses = selectedCollegeCourses.filter(c => c.course_level === lvl);
+                        if (!lvlCourses.length) return null;
+                        const lvlColors = { UG: '#1D4ED8', PG: '#6D28D9', Diploma: '#BE185D', PhD: '#92400E' };
+                        return (
+                          <div key={lvl} style={{ border: '1px solid var(--card-border)', borderRadius: 10, overflow: 'hidden' }}>
+                            <div style={{ background: 'var(--page-bg)', padding: '0.5rem 0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--card-border)' }}>
+                              <span style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', color: lvlColors[lvl] }}>
+                                {lvl === 'UG' ? 'Undergraduate' : lvl === 'PG' ? 'Postgraduate' : lvl === 'PhD' ? 'Doctoral (PhD)' : 'Diploma / Certificate'}
+                              </span>
+                              <span style={{ fontSize: '0.6rem', fontWeight: 700, background: lvlColors[lvl], color: '#fff', padding: '1px 7px', borderRadius: 999 }}>{lvlCourses.length}</span>
+                            </div>
+                            <ul style={{ listStyle: 'none', margin: 0, padding: '0.375rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                              {lvlCourses.map(course => (
+                                <li key={course.course_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0', borderBottom: '1px solid var(--card-border)' }}>
+                                  <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-primary)' }}>{course.course_name}</span>
+                                  <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontFamily: 'monospace', marginLeft: '0.5rem', flexShrink: 0 }}>{course.duration}yr</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Contact Tab */}
+              {modalTab === 'contact' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', background: 'var(--page-bg)', border: '1px solid var(--card-border)', borderRadius: 10, padding: '0.75rem' }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--accent-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <User style={{ width: 15, height: 15, color: '#7C3AED' }} />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block' }}>Principal</span>
+                      <p style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{selectedCollege.principal_name || 'Not Listed'}</p>
+                    </div>
+                  </div>
+                  {[
+                    { Icon: Globe, label: 'Website', value: selectedCollege.website, href: selectedCollege.website, external: true },
+                    { Icon: Mail, label: 'Email', value: selectedCollege.email, href: `mailto:${selectedCollege.email}` },
+                    { Icon: Phone, label: 'Phone', value: selectedCollege.phone, href: `tel:${selectedCollege.phone}` }
+                  ].map(({ Icon, label, value, href, external }) => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', padding: '0.5rem 0', borderBottom: '1px solid var(--card-border)' }}>
+                      <Icon style={{ width: 14, height: 14, color: 'var(--text-muted)', flexShrink: 0 }} />
+                      {value ? (
+                        <a href={href} target={external ? '_blank' : undefined} rel="noopener noreferrer" style={{ fontSize: '0.73rem', color: '#7C3AED', textDecoration: 'none', wordBreak: 'break-all', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {value}{external && <ExternalLink style={{ width: 10, height: 10, flexShrink: 0 }} />}
+                        </a>
+                      ) : (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>{label} not available</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-          </div>
-        </section>
-      )}
 
-      {/* DETAIL MODAL */}
-      {selectedCollege && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          {/* Backdrop Click */}
-          <div className="absolute inset-0" onClick={() => setSelectedCollege(null)}></div>
-          
-          <div className="relative bg-white border border-slate-300 w-full max-w-lg rounded-lg shadow-xl overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="border-b border-slate-100 p-5 pr-12 flex justify-between items-start bg-slate-50">
-              <div>
-                <span className="text-[10px] font-semibold text-accent-700 tracking-wider uppercase block mb-1">
-                  {selectedCollege.college_category}
-                </span>
-                <h3 className="text-base font-bold text-slate-900 font-display leading-snug">
-                  {selectedCollege.college_name}
-                </h3>
-              </div>
-              <button 
-                onClick={() => setSelectedCollege(null)}
-                className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded transition-all"
-                aria-label="Close detail modal"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 space-y-4 text-sm">
-              {/* Accreditation & Rank Status */}
-              <div className="grid grid-cols-3 gap-4 pb-4 border-b border-slate-100">
-                <div>
-                  <span className="text-[11px] text-slate-400 block uppercase font-semibold mb-1">NAAC Grade</span>
-                  <span className={`inline-block px-2.5 py-0.5 rounded text-xs font-bold border ${getNaacBadgeClass(selectedCollege.naac_grade)}`}>
-                    {selectedCollege.naac_grade}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[11px] text-slate-400 block uppercase font-semibold mb-1">Autonomous Status</span>
-                  <span className={`inline-block px-2.5 py-0.5 rounded text-xs font-bold border ${
-                    selectedCollege.autonomous === 'Yes' 
-                      ? 'bg-accent-50 text-accent-800 border-accent-200' 
-                      : (selectedCollege.autonomous === 'No' ? 'bg-slate-50 text-slate-700 border-slate-200' : 'bg-slate-50 text-slate-400 border-slate-100')
-                  }`}>
-                    {selectedCollege.autonomous}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[11px] text-slate-400 block uppercase font-semibold mb-1">NIRF Rank</span>
-                  {selectedCollege.nirf_rank_raw && selectedCollege.nirf_rank_raw !== 'Not Ranked' ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-xs font-bold bg-yellow-50 text-yellow-800 border border-yellow-200">
-                      <Trophy className="h-3 w-3 text-yellow-600" />
-                      {selectedCollege.nirf_rank_raw}
-                    </span>
-                  ) : (
-                    <span className="inline-block px-2.5 py-0.5 rounded text-xs font-medium bg-slate-50 text-slate-400 border border-slate-100">
-                      Unranked
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Affiliation & Campus details */}
-              <div className="grid grid-cols-2 gap-4 pb-4 border-b border-slate-100">
-                <div>
-                  <span className="text-[11px] text-slate-400 block uppercase font-semibold mb-1">University Category</span>
-                  <span className="text-slate-800 text-xs font-semibold">{selectedCollege.university_category || 'Unknown'}</span>
-                </div>
-                <div>
-                  <span className="text-[11px] text-slate-400 block uppercase font-semibold mb-1">Hostel Facility</span>
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-xs font-semibold border ${
-                    selectedCollege.hostel_facility === 'No Hostel Found'
-                      ? 'bg-slate-50 text-slate-500 border-slate-200'
-                      : 'bg-pink-50 text-pink-800 border-pink-200'
-                  }`}>
-                    <Home className="h-3 w-3 shrink-0" />
-                    {selectedCollege.hostel_facility || 'No Hostel Found'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Location details */}
-              <div className="flex items-start gap-3">
-                <MapPin className="h-4.5 w-4.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <span className="text-[11px] text-slate-400 block uppercase font-semibold">Location</span>
-                  <p className="text-slate-800">
-                    {selectedCollege.location_raw}
-                    {selectedCollege.location_raw !== selectedCollege.location_normalized && (
-                      <span className="text-xs text-slate-400 block mt-0.5">
-                        (Grouped under {selectedCollege.location_normalized} region)
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              {/* Principal */}
-              <div className="flex items-start gap-3">
-                <User className="h-4.5 w-4.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <span className="text-[11px] text-slate-400 block uppercase font-semibold">Principal</span>
-                  <p className="text-slate-800 font-medium">{selectedCollege.principal_name || 'Not Listed'}</p>
-                </div>
-              </div>
-
-              {/* Contact Divider */}
-              <div className="h-px bg-slate-100 my-2"></div>
-
-              {/* Contact information */}
-              <div className="space-y-3 pt-1">
-                {/* Website */}
-                {selectedCollege.website ? (
-                  <div className="flex items-center gap-3">
-                    <Globe className="h-4.5 w-4.5 text-slate-400 flex-shrink-0" />
-                    <a 
-                      href={selectedCollege.website} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-accent-700 hover:text-accent-800 hover:underline flex items-center gap-1 font-medium text-xs break-all"
-                    >
-                      {selectedCollege.website}
-                      <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                    </a>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 text-slate-400">
-                    <Globe className="h-4.5 w-4.5 flex-shrink-0" />
-                    <span className="text-xs italic">Website not available</span>
-                  </div>
-                )}
-
-                {/* Email */}
-                {selectedCollege.email ? (
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-4.5 w-4.5 text-slate-400 flex-shrink-0" />
-                    <a 
-                      href={`mailto:${selectedCollege.email}`}
-                      className="text-accent-700 hover:text-accent-800 hover:underline text-xs break-all"
-                    >
-                      {selectedCollege.email}
-                    </a>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 text-slate-400">
-                    <Mail className="h-4.5 w-4.5 flex-shrink-0" />
-                    <span className="text-xs italic">Email not available</span>
-                  </div>
-                )}
-
-                {/* Phone */}
-                {selectedCollege.phone ? (
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-4.5 w-4.5 text-slate-400 flex-shrink-0" />
-                    <a 
-                      href={`tel:${selectedCollege.phone}`}
-                      className="text-slate-700 hover:text-accent-800 text-xs hover:underline"
-                    >
-                      {selectedCollege.phone}
-                    </a>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 text-slate-400">
-                    <Phone className="h-4.5 w-4.5 flex-shrink-0" />
-                    <span className="text-xs italic">Phone not available</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="border-t border-slate-100 p-4 bg-slate-50 flex justify-end">
-              <button 
-                onClick={() => setSelectedCollege(null)}
-                className="px-4 py-2 border border-slate-200 hover:border-slate-300 bg-white text-xs font-semibold rounded text-slate-700 transition-all duration-200 shadow-sm hover:-translate-y-0.5"
-              >
-                Close Registry Details
-              </button>
+            <div className="modal-footer">
+              <button onClick={() => setSelectedCollege(null)} className="btn-ghost">Close</button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   );
 }

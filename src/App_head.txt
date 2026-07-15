@@ -1,0 +1,462 @@
+﻿import React, { useState, useEffect } from 'react';
+import { 
+  Search, 
+  RotateCcw, 
+  Building2, 
+  MapPin, 
+  User, 
+  Globe, 
+  Mail, 
+  Phone, 
+  X, 
+  ExternalLink, 
+  FileCheck2, 
+  GraduationCap, 
+  Award, 
+  CheckCircle,
+  HelpCircle,
+  Trophy,
+  Database,
+  Edit3,
+  Save,
+  Check,
+  Loader2,
+  AlertTriangle,
+  Home,
+  Sun,
+  Moon
+} from 'lucide-react';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Cell,
+  PieChart,
+  Pie,
+  Legend
+} from 'recharts';
+
+export default function App() {
+  const [colleges, setColleges] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Dark / Light theme
+  const [darkMode, setDarkMode] = useState(() => {
+    try { return localStorage.getItem('theme') === 'dark'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('theme', darkMode ? 'dark' : 'light'); } catch {}
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      document.body.style.background = 'linear-gradient(135deg, #0F0F1A 0%, #13131F 100%)';
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.style.background = 'linear-gradient(135deg, #F1EEF6 0%, #FAF5FF 100%)';
+    }
+  }, [darkMode]);
+  
+  // Navigation / View state
+  const [currentView, setCurrentView] = useState('explorer');
+  
+  // Filter States
+  const [searchText, setSearchText] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState('');
+  const [selectedNaac, setSelectedNaac] = useState('');
+  const [selectedAutonomous, setSelectedAutonomous] = useState('');
+  const [selectedNirf, setSelectedNirf] = useState('');
+  const [selectedUnivCategory, setSelectedUnivCategory] = useState('');
+  const [selectedHostel, setSelectedHostel] = useState('');
+  const [activeCategoryTab, setActiveCategoryTab] = useState('All');
+  
+  // Course Filter States
+  const [selectedCourseLevel, setSelectedCourseLevel] = useState('');
+  const [selectedCourseName, setSelectedCourseName] = useState('');
+  const [uniqueCourseNames, setUniqueCourseNames] = useState([]);
+  
+  // Dashboard stats from backend
+  const [courseStats, setCourseStats] = useState({
+    total_courses: 0,
+    avg_courses: 0,
+    highest_course_college: null,
+    course_distribution: { UG: 0, PG: 0, Diploma: 0, PhD: 0 }
+  });
+  
+  // Detail Modal State
+  const [selectedCollege, setSelectedCollege] = useState(null);
+  
+  // Modal tab and courses
+  const [modalTab, setModalTab] = useState('overview');
+  const [selectedCollegeCourses, setSelectedCollegeCourses] = useState([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+
+  // Admin View States
+  const [adminSearchText, setAdminSearchText] = useState('');
+  const [selectedAdminCollege, setSelectedAdminCollege] = useState(null);
+  const [formState, setFormState] = useState({
+    college_name: '',
+    college_category: '',
+    location_raw: '',
+    location_normalized: '',
+    website: '',
+    email: '',
+    phone: '',
+    naac_grade: 'Not Listed',
+    principal_name: '',
+    autonomous: 'Unknown',
+    nirf_rank: '',
+    university_category: 'Unknown',
+    hostel_facility: 'No Hostel Found',
+    nirf_rank_raw: 'Not Ranked'
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null);
+  const [saveMessage, setSaveMessage] = useState('');
+
+  const handleSelectAdminCollege = (college) => {
+    setSelectedAdminCollege(college);
+    setFormState({
+      college_name: college.college_name || '',
+      college_category: college.college_category || '',
+      location_raw: college.location_raw || '',
+      location_normalized: college.location_normalized || '',
+      website: college.website || '',
+      email: college.email || '',
+      phone: college.phone || '',
+      naac_grade: college.naac_grade || 'Not Listed',
+      principal_name: college.principal_name || '',
+      autonomous: college.autonomous || 'Unknown',
+      nirf_rank: college.nirf_rank !== null ? String(college.nirf_rank) : '',
+      university_category: college.university_category || 'Unknown',
+      hostel_facility: college.hostel_facility || 'No Hostel Found',
+      nirf_rank_raw: college.nirf_rank_raw || 'Not Ranked'
+    });
+    setSaveStatus(null);
+    setSaveMessage('');
+  };
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    if (!selectedAdminCollege) return;
+    
+    setIsSaving(true);
+    setSaveStatus(null);
+    setSaveMessage('');
+    
+    const payload = {
+      ...formState
+    };
+    
+    fetch(`/api/colleges/${selectedAdminCollege.college_id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+      .then(res => res.json())
+      .then(res => {
+        setIsSaving(false);
+        if (res.status === 'success') {
+          setSaveStatus('success');
+          setSaveMessage('College record updated successfully in database!');
+          setColleges(prevColleges => 
+            prevColleges.map(c => 
+              c.college_id === selectedAdminCollege.college_id 
+                ? { ...c, ...res.data }
+                : c
+            )
+          );
+          setSelectedAdminCollege(res.data);
+        } else {
+          setSaveStatus('error');
+          setSaveMessage(res.message || 'Failed to save college details');
+        }
+      })
+      .catch(err => {
+        setIsSaving(false);
+        setSaveStatus('error');
+        setSaveMessage(err.message || 'Network error occurred while saving.');
+      });
+  };
+
+  // Debounce search text
+  const [debouncedSearchText, setDebouncedSearchText] = useState('');
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchText(searchText);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchText]);
+
+  // Fetch unique course names on mount
+  useEffect(() => {
+    fetch('/api/courses')
+      .then(res => res.json())
+      .then(res => {
+        if (res.status === 'success') {
+          setUniqueCourseNames(res.data);
+        }
+      })
+      .catch(err => console.error('Error fetching course list:', err));
+  }, []);
+
+  // Fetch colleges list with course filter query parameters
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (debouncedSearchText.trim()) {
+      params.append('search', debouncedSearchText);
+    }
+    if (selectedCourseLevel) {
+      params.append('course_level', selectedCourseLevel);
+    }
+    if (selectedCourseName) {
+      params.append('course_name', selectedCourseName);
+    }
+    
+    fetch(`/api/colleges?${params.toString()}`)
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return res.json();
+      })
+      .then(res => {
+        if (res.status === 'success') {
+          setColleges(res.data);
+          if (res.stats) {
+            setCourseStats(res.stats);
+          }
+        } else {
+          throw new Error(res.message || 'Failed to load colleges');
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error fetching colleges data:', err);
+        setError(err.message);
+        setLoading(false);
+      });
+  }, [debouncedSearchText, selectedCourseLevel, selectedCourseName]);
+
+  // Fetch individual college course list when modal opens
+  useEffect(() => {
+    if (selectedCollege) {
+      setModalTab('overview');
+      setLoadingCourses(true);
+      fetch(`/api/colleges/${selectedCollege.college_id}/courses`)
+        .then(res => res.json())
+        .then(res => {
+          if (res.status === 'success') {
+            setSelectedCollegeCourses(res.data);
+          } else {
+            setSelectedCollegeCourses([]);
+          }
+          setLoadingCourses(false);
+        })
+        .catch(err => {
+          console.error('Error fetching college courses:', err);
+          setSelectedCollegeCourses([]);
+          setLoadingCourses(false);
+        });
+    } else {
+      setSelectedCollegeCourses([]);
+      setModalTab('overview');
+    }
+  }, [selectedCollege]);
+
+  // Listen to Escape key for closing modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setSelectedCollege(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Get dynamic unique filter options from the full dataset
+  const categories = [...new Set(colleges.map(c => c.college_category))].sort();
+  const locations = [...new Set(colleges.map(c => c.location_normalized))].sort();
+  const naacGrades = ['A++', 'A+', 'A', 'B++', 'B+', 'B', 'C', 'D', 'Not Accredited', 'Not Listed'];
+  const autonomousStatuses = ['Yes', 'No', 'Unknown'];
+  const universityCategories = [...new Set(colleges.map(c => c.university_category).filter(Boolean))].sort();
+  const hostelFacilities = ['Boys & Girls', 'Girls Only', 'Boys Only', 'No Hostel Found'];
+
+  // Clear all filters
+  const handleClearFilters = () => {
+    setSearchText('');
+    setSelectedCategory('');
+    setSelectedLocation('');
+    setSelectedNaac('');
+    setSelectedAutonomous('');
+    setSelectedNirf('');
+    setSelectedUnivCategory('');
+    setSelectedHostel('');
+    setSelectedCourseLevel('');
+    setSelectedCourseName('');
+  };
+
+  // Determine active filter count
+  const activeFilterCount = [
+    searchText.trim() !== '',
+    selectedCategory !== '',
+    selectedLocation !== '',
+    selectedNaac !== '',
+    selectedAutonomous !== '',
+    selectedNirf !== '',
+    selectedUnivCategory !== '',
+    selectedHostel !== '',
+    selectedCourseLevel !== '',
+    selectedCourseName !== ''
+  ].filter(Boolean).length;
+
+  // Filter Logic (AND logic combines all active filters)
+  const filteredColleges = colleges.filter(college => {
+    // 0. Primary Category Tab Focus
+    if (activeCategoryTab !== 'All' && college.college_category !== activeCategoryTab) return false;
+
+    // 1. Text Search: Checked on the backend to allow course-level matches and avoid N+1 queries.
+    
+    // 2. Category
+    if (selectedCategory && college.college_category !== selectedCategory) return false;
+    
+    // 3. Normalized Location
+    if (selectedLocation && college.location_normalized !== selectedLocation) return false;
+    
+    // 4. NAAC Grade
+    if (selectedNaac && college.naac_grade !== selectedNaac) return false;
+    
+    // 5. Autonomous
+    if (selectedAutonomous && college.autonomous !== selectedAutonomous) return false;
+
+    // 6. NIRF Rank Status
+    if (selectedNirf === 'ranked' && !college.nirf_rank) return false;
+    if (selectedNirf === 'unranked' && college.nirf_rank) return false;
+
+    // 7. University Category
+    if (selectedUnivCategory && college.university_category !== selectedUnivCategory) return false;
+
+    // 8. Hostel Facility
+    if (selectedHostel && college.hostel_facility !== selectedHostel) return false;
+    
+    return true;
+  });
+
+  // Calculate live statistics for filtered set
+  const totalFiltered = filteredColleges.length;
+  
+  // % NAAC Accredited: (A++, A+, A, B++, B+, B, C, D are accredited; Not Accredited/Not Listed are not)
+  const accreditedCount = filteredColleges.filter(c => 
+    c.naac_grade !== 'Not Accredited' && c.naac_grade !== 'Not Listed'
+  ).length;
+  const pctAccredited = totalFiltered > 0 ? Math.round((accreditedCount / totalFiltered) * 100) : 0;
+
+  // % Autonomous
+  const autonomousCount = filteredColleges.filter(c => c.autonomous === 'Yes').length;
+  const pctAutonomous = totalFiltered > 0 ? Math.round((autonomousCount / totalFiltered) * 100) : 0;
+
+  // % Hostel Available
+  const hostelCount = filteredColleges.filter(c => c.hostel_facility && c.hostel_facility !== 'No Hostel Found').length;
+  const pctHostel = totalFiltered > 0 ? Math.round((hostelCount / totalFiltered) * 100) : 0;
+
+  // Top University category in filtered view
+  const univCountsForPill = filteredColleges.reduce((acc, c) => {
+    acc[c.university_category] = (acc[c.university_category] || 0) + 1;
+    return acc;
+  }, {});
+  const topUnivCategory = Object.entries(univCountsForPill)
+    .sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown';
+
+  // Header Thesis Stat: calculated live from overall dataset
+  const totalCollegesCount = colleges.length;
+  const totalUnaccreditedCount = colleges.filter(c => 
+    c.naac_grade === 'Not Accredited' || c.naac_grade === 'Not Listed'
+  ).length;
+  const totalUnaccreditedPct = totalCollegesCount > 0 ? Math.round((totalUnaccreditedCount / totalCollegesCount) * 100) : 0;
+  const rankedCountTotal = colleges.filter(c => c.nirf_rank).length;
+  const thesisStatement = `${totalCollegesCount} institutions · ${rankedCountTotal} NIRF ranked · ~${totalUnaccreditedPct}% carry no NAAC accreditation`;
+
+  // --- Chart 1: Colleges by Category ---
+  const categoryCounts = filteredColleges.reduce((acc, c) => {
+    acc[c.college_category] = (acc[c.college_category] || 0) + 1;
+    return acc;
+  }, {});
+  
+  const categoryChartData = Object.entries(categoryCounts)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+
+  // --- Chart 1 Dynamic: region counts when tab is selected ---
+  const regionCounts = filteredColleges.reduce((acc, c) => {
+    acc[c.location_normalized] = (acc[c.location_normalized] || 0) + 1;
+    return acc;
+  }, {});
+  
+  const regionChartData = Object.entries(regionCounts)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+
+  // --- Chart 2: Colleges by NAAC Grade ---
+  const naacCounts = filteredColleges.reduce((acc, c) => {
+    acc[c.naac_grade] = (acc[c.naac_grade] || 0) + 1;
+    return acc;
+  }, {});
+
+  const naacChartData = naacGrades
+    .map(grade => ({ name: grade, value: naacCounts[grade] || 0 }))
+    .filter(item => item.value > 0);
+
+  // --- Chart 3: Hostel Facilities Distribution ---
+  const hostelCounts = filteredColleges.reduce((acc, c) => {
+    acc[c.hostel_facility] = (acc[c.hostel_facility] || 0) + 1;
+    return acc;
+  }, {});
+  
+  const hostelChartData = Object.entries(hostelCounts)
+    .map(([name, value]) => ({ name, value }));
+    
+  const HOSTEL_COLORS = {
+    'Boys & Girls': '#8B5CF6',
+    'Girls Only': '#EC4899',
+    'Boys Only': '#3B82F6',
+    'No Hostel Found': '#64748B'
+  };
+
+  // --- Chart 4: University Affiliations ---
+  const univCounts = filteredColleges.reduce((acc, c) => {
+    acc[c.university_category] = (acc[c.university_category] || 0) + 1;
+    return acc;
+  }, {});
+  
+  const univChartData = Object.entries(univCounts)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6);
+
+  // Color Helper for NAAC Grades
+  const getNaacColor = (grade) => {
+    if (['A++', 'A+', 'A'].includes(grade)) return '#10b981'; // Emerald/Green
+    if (['B++', 'B+', 'B'].includes(grade)) return '#d97706'; // Amber/Gold
+    return '#64748b'; // Slate/Gray for C, D, Not Accredited, Not Listed
+  };
+
+  const getNaacBadgeClass = (grade) => {
+    if (['A++', 'A+', 'A'].includes(grade)) {
+      return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+    }
+    if (['B++', 'B+', 'B'].includes(grade)) {
+      return 'bg-accent-50 text-accent-800 border-accent-200';
+    }
+    return 'bg-slate-50 text-slate-700 border-slate-200';
+  };
+
+  const ugCount = selectedCollegeCourses.filter(c => c.course_level === 'UG').length;
+  const pgCount = selectedCollegeCourses.filter(c => c.course_level === 'PG').length;
+  const diplomaCount = selectedCollegeCourses.filter(c => c.course_level === 'Diploma').length;
+  const phdCount = selectedCollegeCourses.filter(c => c.course_level === 'PhD').length;
