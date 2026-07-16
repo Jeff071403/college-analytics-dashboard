@@ -1,7 +1,7 @@
 import os
 import re
 import pandas as pd
-from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData
+from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, ForeignKey
 from db import get_engine
 
 def parse_nirf_rank_int(val):
@@ -112,7 +112,7 @@ def load_to_db():
         engine, db_type = get_engine()
         metadata = MetaData()
         
-        # Define table
+        # Define tables
         colleges_table = Table(
             'colleges', metadata,
             Column('college_id', Integer, primary_key=True),
@@ -132,7 +132,19 @@ def load_to_db():
             Column('nirf_rank_raw', String(100), nullable=False)
         )
         
-        # Recreate table
+        # Define courses table to ensure drop_all handles constraints correctly in PostgreSQL
+        courses_table = Table(
+            'courses', metadata,
+            Column('id', Integer, primary_key=True, autoincrement=True),
+            Column('course_id', Integer, nullable=False),
+            Column('college_id', Integer, ForeignKey('colleges.college_id', ondelete='CASCADE'), nullable=False, index=True),
+            Column('course_name', String(255), nullable=False),
+            Column('course_level', String(50), nullable=False),
+            Column('course_category', String(100), nullable=False),
+            Column('duration', Integer, nullable=False)
+        )
+        
+        # Recreate tables in the correct dependency order
         metadata.drop_all(engine)
         metadata.create_all(engine)
         
@@ -142,6 +154,14 @@ def load_to_db():
             conn.execute(colleges_table.insert(), records)
             
         print(f"Successfully loaded data into {db_type} database.")
+        
+        # Automatically import courses to populate the recreated courses table
+        try:
+            from import_courses import import_courses
+            import_courses()
+            print("Successfully auto-imported courses from courses.csv")
+        except Exception as e:
+            print(f"Failed to auto-import courses: {e}")
         
         # Quick validation
         with engine.connect() as conn:

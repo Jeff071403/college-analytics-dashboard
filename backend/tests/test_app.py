@@ -178,6 +178,76 @@ class UpdateCollegeRouteTest(unittest.TestCase):
         response_phd = self.client.get("/api/colleges?course_level=PhD")
         self.assertEqual(len(response_phd.get_json()["data"]), 0)
 
+    def test_add_college_course(self):
+        # Successful addition
+        response = self.client.post(
+            "/api/colleges/1/courses",
+            json={
+                "course_name": "Ph.D Computer Science",
+                "course_level": "PhD",
+                "course_category": "Computer Applications / IT",
+                "duration": 3
+            }
+        )
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["data"]["course_name"], "Ph.D Computer Science")
+        self.assertEqual(payload["data"]["course_level"], "PhD")
+
+        # Duplicate check (the mock setup already has 'B.Sc Computer Science' for college 1, let's try to add it again)
+        response_dup = self.client.post(
+            "/api/colleges/1/courses",
+            json={
+                "course_name": "B.Sc Computer Science",
+                "course_level": "UG",
+                "course_category": "Computer Applications / IT",
+                "duration": 3
+            }
+        )
+        self.assertEqual(response_dup.status_code, 400)
+        self.assertEqual(response_dup.get_json()["status"], "error")
+
+    def test_update_course(self):
+        # Update course with primary key 1 (mock setup: we inserted 2 courses, their row ids will be 1 and 2 in sqlite)
+        response = self.client.put(
+            "/api/courses/1",
+            json={
+                "course_name": "B.Sc Computer Science and Data Analytics",
+                "course_level": "UG",
+                "course_category": "Computer Applications / IT",
+                "duration": 3
+            }
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["data"]["course_name"], "B.Sc Computer Science and Data Analytics")
+
+        # Update course that doesn't exist
+        response_not_found = self.client.put(
+            "/api/courses/999",
+            json={
+                "course_name": "B.Sc Physics",
+                "course_level": "UG",
+                "course_category": "Science",
+                "duration": 3
+            }
+        )
+        self.assertEqual(response_not_found.status_code, 404)
+
+    def test_delete_course(self):
+        # Delete course with ID 1
+        response = self.client.delete("/api/courses/1")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["message"], "Course deleted successfully")
+
+        # Delete course that doesn't exist
+        response_not_found = self.client.delete("/api/courses/999")
+        self.assertEqual(response_not_found.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

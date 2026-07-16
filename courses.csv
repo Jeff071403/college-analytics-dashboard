@@ -290,3 +290,531 @@
 111,6,M.Sc Mathematics,fuzzy,70
 113,6,M.Sc Physics,fuzzy,70
 197,6,PhD Law,alias,100
+5,7,B.A Economics,exact,70
+212,7,B.A English Language and Literature,exact,70
+219,7,B.A Tamil Literature,exact,70
+45,7,B.Com,fuzzy,70
+30,7,B.Sc Biochemistry,exact,70
+31,7,B.Sc Biotechnology,fuzzy,70
+34,7,B.Sc Botany,exact,70
+29,7,B.Sc Chemistry,exact,70
+19,7,B.Sc Computer Science,exact,70
+222,7,"B.Sc Geography, Tourism and Travel Management",exact,70
+26,7,B.Sc Mathematics,exact,70
+28,7,B.Sc Physics,exact,70
+98,7,M.A Economics,exact,70
+213,7,M.A English Language and Literature,exact,70
+121,7,M.Com,fuzzy,70
+250,7,M.Phil Biochemistry,exact,70
+251,7,M.Phil Commerce,alias,70
+115,7,M.Sc Biochemistry,exact,70
+118,7,M.Sc Botany,exact,70
+114,7,M.Sc Chemistry,exact,70
+105,7,M.Sc Computer Science,exact,70
+111,7,M.Sc Mathematics,exact,70
+113,7,M.Sc Physics,exact,70
+119,7,M.Sc Zoology,exact,70
+192,7,PhD Chemistry,fuzzy,70
+185,7,PhD English,exact,70
+188,7,PhD History,exact,70
+197,7,PhD Law,alias,70
+186,7,PhD Tamil,exact,70
+61,8,B.Ed,exact,95
+89,8,BOT,exact,60
+155,8,Diploma in Medical Laboratory Technology,exact,85
+83,8,MBBS,exact,90
+204,8,MSW,fuzzy,90
+198,8,PhD Mechanical Engineering,fuzzy,60
+5,9,B.A Economics,exact,95
+212,9,B.A English Language and Literature,exact,95
+219,9,B.A Tamil Literature,exact,95
+45,9,B.Com,fuzzy,95
+46,9,B.Com Accounting and Finance,exact,95
+61,9,B.Ed,exact,60
+23,9,B.Sc Artificial Intelligence,fuzzy,95
+31,9,B.Sc Biotechnology,fuzzy,95
+29,9,B.Sc Chemistry,exact,95
+19,9,B.Sc Computer Science,exact,95
+215,9,BBA Business Administration,exact,90
+213,9,M.A English Language and Literature,fuzzy,85
+220,9,M.A Tamil Literature,fuzzy,60
+121,9,M.Com,exact,60
+130,9,M.Ed,exact,60
+251,9,M.Phil Commerce,alias,60
+197,9,PhD Law,alias,60
+186,9,PhD Tamil,exact,95
+15,10,B.A Corporate Secretaryship,exact,80
+18,10,B.A Defence Studies,fuzzy,60
+212,10,B.A English Language and Literature,exact,60
+45,10,B.Com,exact,60
+46,10,B.Com Accounting and Finance,exact,95
+50,10,B.Com Computer Applications,exact,95
+48,10,B.Com Corporate Secretaryship,fuzzy,60
+61,10,B.Ed,exact,95
+19,10,B.Sc Computer Science,exact,95
+223,10,"B.Sc Physical Education, Health Education and Sports",fuzzy,60
+35,10,B.Sc Psychology,fuzzy,60
+44,10,B.Sc Visual Communication,exact,60
+70,10,BA LLB,fuzzy,60
+215,10,BBA Business Administration,exact,60
+57,10,BBA Hospital Management,fuzzy,60
+71,10,BBA LLB,fuzzy,60
+216,10,BCA Computer Application,exact,60
+178,10,Certificate in GST,exact,60
+179,10,Certificate in Tally,fuzzy,60
+208,10,M.A Communication,exact,95
+98,10,M.A Economics,fuzzy,95
+213,10,M.A English Language and Literature,fuzzy,95
+121,10,M.Com,exact,95
+130,10,M.Ed,exact,95
+251,10,M.Phil Commerce,alias,95
+114,10,M.Sc Chemistry,fuzzy,70
+105,10,M.Sc Computer Science,exact,95
+108,10,M.Sc Data Science,fuzzy,60
+106,10,M.Sc Information Technology,exact,70
+111,10,M.Sc Mathematics,exact,95
+120,10,M.Sc Psychology,exact,60
+138,10,M.Tech Cyber Security,fuzzy,60
+122,10,MBA,exact,95
+224,10,MCA Computer Application,exact,95
+193,10,PhD Biotechnology,fuzzy,70
+195,10,PhD Commerce,exact,60
+189,10,PhD Computer Science,fuzzy,95
+187,10,PhD Economics,fuzzy,95
+197,10,PhD Law,alias,95
+190,10,PhD Mathematics,fuzzy,95
+5,11,B.A Economics,exact,90
+212,11,B.A English Language and Literature,exact,90
+219,11,B.A Tamil Literature,exact,90
+45,11,B.Com,exact,90
+46,11,B.Com Accounting and Finance,exact,90
+48,11,B.Com Corporate Secretaryship,exact,90
+29,11,B.Sc Chemistry,exact,90
+19,11,B.Sc Computer Science,exact,90
+36,11,B.Sc Electronics,fuzzy,90
+26,11,B.Sc Mathematics,exact,90
+28,11,B.Sc Physics,exact,90
+27,11,B.Sc Statistics,exact,90
+44,11,B.Sc Visual Communication,exact,90
+216,11,BCA Computer Application,exact,90
+220,11,M.A Tamil Literature,exact,90
+121,11,M.Com,exact,90
+204,11,MSW,exact,90
+195,11,PhD Commerce,exact,60
+18,12,B.A Defence Studies,fuzzy,95
+45,12,B.Com,exact,95
+61,12,B.Ed,exact,60
+34,12,B.Sc Botany,exact,95
+29,12,B.Sc Chemistry,fuzzy,95
+26,12,B.Sc Mathematics,fuzzy,60
+28,12,B.Sc Physics,exact,95
+202,12,B.Sc Plant Biology and Plant Biotechnology,fuzzy,70
+35,12,B.Sc Psychology,fuzzy,60
+44,12,B.Sc Visual Communication,fuzzy,60
+33,12,B.Sc Zoology,exact,95
+215,12,BBA Business Administration,exact,95
+87,12,BUMS,exact,60
+220,12,M.A Tamil Literature,fuzzy,95
+121,12,M.Com,exact,60
+250,12,M.Phil Biochemistry,fuzzy,100
+251,12,M.Phil Commerce,alias,95
+114,12,M.Sc Chemistry,fuzzy,60
+105,12,M.Sc Computer Science,fuzzy,60
+111,12,M.Sc Mathematics,fuzzy,60
+122,12,MBA,fuzzy,95
+224,12,MCA Computer Application,exact,60
+143,12,MOT,exact,60
+204,12,MSW,exact,95
+217,12,MSW Community Development,fuzzy,95
+192,12,PhD Chemistry,exact,100
+195,12,PhD Commerce,exact,100
+189,12,PhD Computer Science,exact,100
+187,12,PhD Economics,exact,100
+185,12,PhD English,exact,100
+197,12,PhD Law,alias,95
+190,12,PhD Mathematics,fuzzy,100
+5,13,B.A Economics,fuzzy,60
+212,13,B.A English Language and Literature,fuzzy,60
+12,13,B.A Journalism,fuzzy,60
+9,13,B.A Sociology,fuzzy,60
+45,13,B.Com,exact,60
+46,13,B.Com Accounting and Finance,fuzzy,60
+50,13,B.Com Computer Applications,fuzzy,60
+48,13,B.Com Corporate Secretaryship,fuzzy,60
+53,13,B.Com Marketing Management,fuzzy,60
+47,13,B.Com Professional Accounting,fuzzy,60
+31,13,B.Sc Biotechnology,fuzzy,60
+29,13,B.Sc Chemistry,fuzzy,60
+19,13,B.Sc Computer Science,fuzzy,60
+26,13,B.Sc Mathematics,exact,60
+28,13,B.Sc Physics,fuzzy,60
+202,13,B.Sc Plant Biology and Plant Biotechnology,fuzzy,60
+35,13,B.Sc Psychology,fuzzy,60
+27,13,B.Sc Statistics,fuzzy,60
+44,13,B.Sc Visual Communication,fuzzy,60
+216,13,BCA Computer Application,fuzzy,60
+98,13,M.A Economics,fuzzy,60
+249,13,M.A. Human Resource Management,fuzzy,60
+114,13,M.Sc Chemistry,fuzzy,60
+105,13,M.Sc Computer Science,fuzzy,60
+111,13,M.Sc Mathematics,fuzzy,60
+113,13,M.Sc Physics,fuzzy,60
+224,13,MCA Computer Application,fuzzy,60
+204,13,MSW,fuzzy,100
+218,13,MSW Human Resource Management,exact,100
+5,15,B.A Economics,exact,90
+212,15,B.A English Language and Literature,fuzzy,90
+45,15,B.Com,exact,100
+48,15,B.Com Corporate Secretaryship,exact,90
+61,15,B.Ed,exact,95
+19,15,B.Sc Computer Science,exact,90
+26,15,B.Sc Mathematics,exact,90
+28,15,B.Sc Physics,exact,90
+202,15,B.Sc Plant Biology and Plant Biotechnology,exact,90
+215,15,BBA Business Administration,exact,100
+213,15,M.A English Language and Literature,exact,95
+121,15,M.Com,exact,100
+130,15,M.Ed,exact,95
+251,15,M.Phil Commerce,alias,95
+118,15,M.Sc Botany,exact,90
+105,15,M.Sc Computer Science,exact,90
+111,15,M.Sc Mathematics,exact,90
+113,15,M.Sc Physics,exact,90
+120,15,M.Sc Psychology,exact,95
+119,15,M.Sc Zoology,exact,90
+122,15,MBA,exact,95
+224,15,MCA Computer Application,exact,95
+197,15,PhD Law,alias,100
+16,16,B.A Criminology,fuzzy,85
+18,16,B.A Defence Studies,fuzzy,100
+5,16,B.A Economics,exact,100
+212,16,B.A English Language and Literature,exact,85
+7,16,B.A Political Science,exact,100
+9,16,B.A Sociology,exact,100
+45,16,B.Com,exact,85
+46,16,B.Com Accounting and Finance,exact,100
+50,16,B.Com Computer Applications,exact,100
+48,16,B.Com Corporate Secretaryship,exact,100
+53,16,B.Com Marketing Management,exact,100
+47,16,B.Com Professional Accounting,exact,100
+61,16,B.Ed,exact,60
+23,16,B.Sc Artificial Intelligence,fuzzy,100
+30,16,B.Sc Biochemistry,exact,90
+31,16,B.Sc Biotechnology,fuzzy,100
+29,16,B.Sc Chemistry,exact,100
+19,16,B.Sc Computer Science,exact,100
+22,16,B.Sc Data Science,fuzzy,100
+38,16,B.Sc Environmental Science,fuzzy,60
+39,16,B.Sc Geology,fuzzy,90
+20,16,B.Sc Information Technology,exact,100
+26,16,B.Sc Mathematics,exact,100
+223,16,"B.Sc Physical Education, Health Education and Sports",fuzzy,100
+28,16,B.Sc Physics,exact,100
+202,16,B.Sc Plant Biology and Plant Biotechnology,exact,100
+21,16,B.Sc Software Systems,fuzzy,90
+27,16,B.Sc Statistics,exact,60
+44,16,B.Sc Visual Communication,exact,100
+33,16,B.Sc Zoology,exact,100
+215,16,BBA Business Administration,exact,100
+216,16,BCA Computer Application,exact,100
+98,16,M.A Economics,exact,100
+213,16,M.A English Language and Literature,exact,85
+99,16,M.A History,fuzzy,85
+102,16,M.A Sociology,fuzzy,85
+220,16,M.A Tamil Literature,exact,85
+121,16,M.Com,fuzzy,100
+130,16,M.Ed,exact,95
+251,16,M.Phil Commerce,alias,95
+109,16,M.Sc Artificial Intelligence,fuzzy,100
+115,16,M.Sc Biochemistry,exact,60
+116,16,M.Sc Biotechnology,exact,60
+114,16,M.Sc Chemistry,exact,100
+108,16,M.Sc Data Science,fuzzy,90
+111,16,M.Sc Mathematics,exact,85
+107,16,M.Sc Software Systems,fuzzy,60
+112,16,M.Sc Statistics,exact,90
+119,16,M.Sc Zoology,exact,100
+122,16,MBA,exact,100
+224,16,MCA Computer Application,exact,100
+142,16,MPT,exact,85
+204,16,MSW,exact,100
+189,16,PhD Computer Science,fuzzy,85
+197,16,PhD Law,alias,85
+240,16,PhD Microbiology,fuzzy,85
+186,16,PhD Tamil,fuzzy,85
+16,17,B.A Criminology,fuzzy,60
+5,17,B.A Economics,fuzzy,60
+212,17,B.A English Language and Literature,exact,60
+3,17,B.A Hindi,fuzzy,60
+7,17,B.A Political Science,exact,60
+17,17,B.A Tourism and Travel Management,exact,60
+45,17,B.Com,exact,60
+46,17,B.Com Accounting and Finance,exact,60
+48,17,B.Com Corporate Secretaryship,exact,60
+51,17,B.Com Information Systems,fuzzy,60
+61,17,B.Ed,exact,60
+23,17,B.Sc Artificial Intelligence,fuzzy,100
+30,17,B.Sc Biochemistry,exact,60
+31,17,B.Sc Biotechnology,fuzzy,60
+29,17,B.Sc Chemistry,exact,60
+19,17,B.Sc Computer Science,exact,60
+37,17,B.Sc Electronics and Communication,exact,60
+26,17,B.Sc Mathematics,exact,60
+32,17,B.Sc Microbiology,exact,60
+41,17,B.Sc Nutrition and Dietetics,fuzzy,60
+28,17,B.Sc Physics,exact,60
+202,17,B.Sc Plant Biology and Plant Biotechnology,exact,60
+35,17,B.Sc Psychology,exact,60
+27,17,B.Sc Statistics,exact,60
+33,17,B.Sc Zoology,exact,60
+70,17,BA LLB,fuzzy,95
+215,17,BBA Business Administration,exact,60
+216,17,BCA Computer Application,exact,60
+98,17,M.A Economics,exact,95
+213,17,M.A English Language and Literature,exact,95
+104,17,M.A Journalism,exact,60
+101,17,M.A Public Administration,exact,60
+102,17,M.A Sociology,exact,60
+121,17,M.Com,exact,60
+130,17,M.Ed,exact,95
+251,17,M.Phil Commerce,alias,60
+209,17,M.Sc Applied Microbiology,exact,95
+221,17,M.Sc Applied Psychology,exact,95
+115,17,M.Sc Biochemistry,exact,60
+116,17,M.Sc Biotechnology,exact,60
+105,17,M.Sc Computer Science,exact,95
+108,17,M.Sc Data Science,fuzzy,60
+111,17,M.Sc Mathematics,exact,95
+117,17,M.Sc Microbiology,fuzzy,60
+113,17,M.Sc Physics,exact,95
+120,17,M.Sc Psychology,fuzzy,60
+112,17,M.Sc Statistics,exact,60
+119,17,M.Sc Zoology,exact,95
+224,17,MCA Computer Application,exact,60
+204,17,MSW,exact,60
+201,17,PhD Artificial Intelligence,fuzzy,65
+195,17,PhD Commerce,exact,100
+189,17,PhD Computer Science,fuzzy,100
+185,17,PhD English,exact,100
+188,17,PhD History,exact,100
+197,17,PhD Law,alias,60
+186,17,PhD Tamil,exact,100
+5,18,B.A Economics,exact,95
+212,18,B.A English Language and Literature,exact,60
+4,18,B.A French,fuzzy,60
+6,18,B.A History,fuzzy,95
+9,18,B.A Sociology,fuzzy,60
+219,18,B.A Tamil Literature,fuzzy,60
+45,18,B.Com,fuzzy,60
+46,18,B.Com Accounting and Finance,fuzzy,60
+50,18,B.Com Computer Applications,exact,60
+48,18,B.Com Corporate Secretaryship,exact,60
+31,18,B.Sc Biotechnology,fuzzy,60
+29,18,B.Sc Chemistry,exact,95
+19,18,B.Sc Computer Science,exact,60
+26,18,B.Sc Mathematics,exact,60
+28,18,B.Sc Physics,exact,95
+202,18,B.Sc Plant Biology and Plant Biotechnology,fuzzy,60
+27,18,B.Sc Statistics,exact,60
+44,18,B.Sc Visual Communication,fuzzy,60
+33,18,B.Sc Zoology,exact,60
+215,18,BBA Business Administration,exact,60
+216,18,BCA Computer Application,exact,60
+98,18,M.A Economics,exact,95
+213,18,M.A English Language and Literature,exact,60
+99,18,M.A History,fuzzy,60
+203,18,M.A Philosophy,fuzzy,60
+102,18,M.A Sociology,fuzzy,60
+121,18,M.Com,exact,60
+251,18,M.Phil Commerce,fuzzy,95
+116,18,M.Sc Biotechnology,exact,60
+114,18,M.Sc Chemistry,exact,95
+105,18,M.Sc Computer Science,exact,60
+111,18,M.Sc Mathematics,exact,60
+113,18,M.Sc Physics,fuzzy,60
+120,18,M.Sc Psychology,fuzzy,60
+112,18,M.Sc Statistics,exact,95
+119,18,M.Sc Zoology,exact,60
+122,18,MBA,exact,95
+197,18,PhD Law,alias,100
+5,19,B.A Economics,exact,100
+212,19,B.A English Language and Literature,exact,100
+6,19,B.A History,exact,100
+205,19,B.A History Voc Archeology and Museology,fuzzy,100
+12,19,B.A Journalism,exact,100
+11,19,B.A Philosophy,exact,100
+7,19,B.A Political Science,exact,100
+219,19,B.A Tamil Literature,exact,100
+45,19,B.Com,exact,100
+46,19,B.Com Accounting and Finance,exact,100
+50,19,B.Com Computer Applications,exact,60
+47,19,B.Com Professional Accounting,exact,100
+61,19,B.Ed,exact,100
+31,19,B.Sc Biotechnology,fuzzy,60
+34,19,B.Sc Botany,exact,60
+29,19,B.Sc Chemistry,exact,60
+19,19,B.Sc Computer Science,exact,60
+222,19,"B.Sc Geography, Tourism and Travel Management",exact,60
+207,19,B.Sc Hospitality and Tourism,exact,100
+26,19,B.Sc Mathematics,exact,60
+32,19,B.Sc Microbiology,exact,60
+223,19,"B.Sc Physical Education, Health Education and Sports",exact,60
+28,19,B.Sc Physics,exact,60
+202,19,B.Sc Plant Biology and Plant Biotechnology,exact,60
+35,19,B.Sc Psychology,exact,60
+27,19,B.Sc Statistics,exact,60
+44,19,B.Sc Visual Communication,exact,60
+33,19,B.Sc Zoology,exact,60
+215,19,BBA Business Administration,exact,100
+216,19,BCA Computer Application,exact,100
+214,19,BSW Social Work,exact,100
+238,19,Bridge Course in English,exact,85
+237,19,Certificate Course in French,exact,85
+235,19,Certificate Course in Industrial Psychology and Organisational Development,exact,85
+145,19,Diploma in Computer Applications,exact,85
+166,19,Diploma in Digital Marketing,exact,85
+167,19,Diploma in Human Resource Management,exact,85
+225,19,Diploma in Journalism and Mass Communication,exact,85
+155,19,Diploma in Medical Laboratory Technology,exact,85
+226,19,Diploma in Montessori and Primary School Teacher Training,fuzzy,85
+229,19,Diploma/Internship in Counselling Skills,exact,85
+227,19,Diploma/Internship in Shipping Logistics,exact,85
+228,19,Diploma/Internship in the Elements of Archaeology,exact,85
+208,19,M.A Communication,fuzzy,60
+98,19,M.A Economics,fuzzy,60
+213,19,M.A English Language and Literature,fuzzy,60
+99,19,M.A History,fuzzy,60
+203,19,M.A Philosophy,exact,60
+100,19,M.A Political Science,exact,100
+101,19,M.A Public Administration,fuzzy,60
+220,19,M.A Tamil Literature,exact,60
+121,19,M.Com,exact,100
+210,19,M.Com Computer Oriented Business Application,exact,100
+130,19,M.Ed,exact,100
+251,19,M.Phil Commerce,alias,100
+209,19,M.Sc Applied Microbiology,fuzzy,60
+221,19,M.Sc Applied Psychology,exact,100
+114,19,M.Sc Chemistry,fuzzy,60
+111,19,M.Sc Mathematics,exact,60
+117,19,M.Sc Microbiology,fuzzy,60
+113,19,M.Sc Physics,exact,60
+211,19,M.Sc Plant Biology and Plant Biotechnology,exact,60
+112,19,M.Sc Statistics,exact,100
+119,19,M.Sc Zoology,fuzzy,60
+122,19,MBA,exact,100
+224,19,MCA Computer Application,fuzzy,60
+204,19,MSW,exact,100
+217,19,MSW Community Development,fuzzy,100
+192,19,PhD Chemistry,exact,100
+195,19,PhD Commerce,exact,100
+189,19,PhD Computer Science,fuzzy,100
+187,19,PhD Economics,exact,100
+196,19,PhD Education,exact,60
+185,19,PhD English,exact,100
+188,19,PhD History,exact,100
+197,19,PhD Law,alias,100
+190,19,PhD Mathematics,exact,100
+240,19,PhD Microbiology,exact,100
+191,19,PhD Physics,exact,100
+186,19,PhD Tamil,exact,100
+232,19,Post Graduate Diploma in Computer Applications,fuzzy,85
+231,19,Post Graduate Diploma in Human Resource Management,fuzzy,85
+234,19,Post Graduate Diploma in Journalism and Mass Communication,fuzzy,85
+233,19,Post Graduate Diploma in Medical Laboratory Technology,fuzzy,85
+6,20,B.A History,fuzzy,60
+45,20,B.Com,exact,60
+46,20,B.Com Accounting and Finance,fuzzy,60
+48,20,B.Com Corporate Secretaryship,fuzzy,60
+51,20,B.Com Information Systems,fuzzy,60
+61,20,B.Ed,exact,60
+23,20,B.Sc Artificial Intelligence,fuzzy,60
+19,20,B.Sc Computer Science,exact,70
+20,20,B.Sc Information Technology,fuzzy,60
+26,20,B.Sc Mathematics,exact,60
+202,20,B.Sc Plant Biology and Plant Biotechnology,exact,60
+215,20,BBA Business Administration,exact,60
+216,20,BCA Computer Application,exact,60
+213,20,M.A English Language and Literature,exact,60
+203,20,M.A Philosophy,exact,100
+102,20,M.A Sociology,fuzzy,60
+121,20,M.Com,exact,60
+250,20,M.Phil Biochemistry,fuzzy,100
+251,20,M.Phil Commerce,alias,60
+114,20,M.Sc Chemistry,fuzzy,60
+108,20,M.Sc Data Science,fuzzy,60
+106,20,M.Sc Information Technology,fuzzy,60
+119,20,M.Sc Zoology,fuzzy,60
+122,20,MBA,exact,60
+193,20,PhD Biotechnology,fuzzy,60
+192,20,PhD Chemistry,exact,100
+195,20,PhD Commerce,exact,100
+187,20,PhD Economics,exact,100
+185,20,PhD English,exact,100
+188,20,PhD History,exact,100
+197,20,PhD Law,alias,70
+190,20,PhD Mathematics,exact,100
+191,20,PhD Physics,exact,100
+186,20,PhD Tamil,exact,100
+19,21,B.Sc Computer Science,exact,60
+33,21,B.Sc Zoology,exact,60
+216,21,BCA Computer Application,fuzzy,65
+98,21,M.A Economics,fuzzy,60
+203,21,M.A Philosophy,fuzzy,60
+251,21,M.Phil Commerce,alias,60
+192,21,PhD Chemistry,exact,60
+195,21,PhD Commerce,exact,60
+187,21,PhD Economics,exact,60
+185,21,PhD English,exact,60
+188,21,PhD History,exact,60
+190,21,PhD Mathematics,exact,60
+191,21,PhD Physics,exact,60
+186,21,PhD Tamil,exact,60
+45,22,B.Com,fuzzy,85
+61,22,B.Ed,exact,95
+216,22,BCA Computer Application,exact,100
+104,22,M.A Journalism,fuzzy,95
+220,22,M.A Tamil Literature,exact,95
+121,22,M.Com,exact,95
+130,22,M.Ed,exact,95
+250,22,M.Phil Biochemistry,fuzzy,100
+251,22,M.Phil Commerce,alias,95
+122,22,MBA,exact,95
+224,22,MCA Computer Application,exact,95
+204,22,MSW,exact,100
+197,22,PhD Law,alias,100
+5,23,B.A Economics,exact,70
+212,23,B.A English Language and Literature,exact,70
+8,23,B.A Public Administration,exact,70
+9,23,B.A Sociology,exact,70
+219,23,B.A Tamil Literature,exact,70
+45,23,B.Com,exact,70
+46,23,B.Com Accounting and Finance,exact,70
+50,23,B.Com Computer Applications,fuzzy,70
+48,23,B.Com Corporate Secretaryship,exact,70
+19,23,B.Sc Computer Science,exact,70
+26,23,B.Sc Mathematics,exact,70
+35,23,B.Sc Psychology,exact,70
+44,23,B.Sc Visual Communication,exact,70
+215,23,BBA Business Administration,exact,70
+216,23,BCA Computer Application,exact,70
+145,23,Diploma in Computer Applications,exact,100
+167,23,Diploma in Human Resource Management,fuzzy,100
+225,23,Diploma in Journalism and Mass Communication,exact,100
+98,23,M.A Economics,exact,70
+213,23,M.A English Language and Literature,exact,70
+100,23,M.A Political Science,exact,70
+101,23,M.A Public Administration,exact,70
+220,23,M.A Tamil Literature,exact,70
+121,23,M.Com,exact,70
+251,23,M.Phil Commerce,alias,70
+108,23,M.Sc Data Science,fuzzy,65
+106,23,M.Sc Information Technology,exact,70
+111,23,M.Sc Mathematics,exact,70
+120,23,M.Sc Psychology,exact,70
+122,23,MBA,exact,70
+125,23,MBA Human Resource Management,fuzzy,70
+127,23,MBA Logistics and Supply Chain Management,fuzzy,70
+124,23,MBA Marketing,fuzzy,70
+224,23,MCA Computer Application,exact,70
+195,23,PhD Commerce,exact,70
+197,23,PhD Law,alias,70

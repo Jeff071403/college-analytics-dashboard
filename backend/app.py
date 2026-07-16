@@ -330,7 +330,7 @@ def get_college_courses(college_id):
                 }), 404
                 
             result = conn.execute(text("""
-                SELECT course_id, course_name, course_level, course_category, duration 
+                SELECT id, course_id, course_name, course_level, course_category, duration 
                 FROM courses 
                 WHERE college_id = :college_id
                 ORDER BY course_level, course_name
@@ -339,11 +339,12 @@ def get_college_courses(college_id):
             courses = []
             for row in result:
                 courses.append({
-                    'course_id': row[0],
-                    'course_name': row[1],
-                    'course_level': row[2],
-                    'course_category': row[3],
-                    'duration': row[4]
+                    'id': row[0],
+                    'course_id': row[1],
+                    'course_name': row[2],
+                    'course_level': row[3],
+                    'course_category': row[4],
+                    'duration': row[5]
                 })
                 
             return jsonify({
@@ -356,6 +357,191 @@ def get_college_courses(college_id):
             'status': 'error',
             'message': str(e)
         }), 500
+
+@app.route('/api/colleges/<int:college_id>/courses', methods=['POST'])
+def add_college_course(college_id):
+    try:
+        data = request.get_json(silent=True) or {}
+        course_name = data.get('course_name', '').strip()
+        course_level = data.get('course_level', '').strip()
+        course_category = data.get('course_category', '').strip()
+        duration = data.get('duration')
+
+        if not course_name or not course_level or not course_category or duration is None:
+            return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
+
+        try:
+            duration = int(duration)
+        except ValueError:
+            return jsonify({'status': 'error', 'message': 'Duration must be an integer'}), 400
+
+        with engine.begin() as conn:
+            # Check if college exists
+            check_college = conn.execute(text("SELECT 1 FROM colleges WHERE college_id = :college_id"), {'college_id': college_id}).scalar()
+            if not check_college:
+                return jsonify({'status': 'error', 'message': 'College not found'}), 404
+
+            # Check if college already offers this course name (prevent duplicates)
+            dup_check = conn.execute(text("""
+                SELECT 1 FROM courses 
+                WHERE college_id = :college_id AND LOWER(course_name) = LOWER(:course_name)
+            """), {'college_id': college_id, 'course_name': course_name}).scalar()
+            if dup_check:
+                return jsonify({'status': 'error', 'message': 'This college already offers this course'}), 400
+
+            # Determine course_id
+            existing_course_id = conn.execute(text("""
+                SELECT course_id FROM courses 
+                WHERE LOWER(course_name) = LOWER(:course_name) 
+                LIMIT 1
+            """), {'course_name': course_name}).scalar()
+
+            if existing_course_id:
+                course_id = existing_course_id
+            else:
+                max_id = conn.execute(text("SELECT MAX(course_id) FROM courses")).scalar()
+                course_id = (max_id + 1) if max_id is not None else 1
+
+            # Insert course
+            if db_type == "postgresql":
+                result = conn.execute(text("""
+                    INSERT INTO courses (course_id, college_id, course_name, course_level, course_category, duration)
+                    VALUES (:course_id, :college_id, :course_name, :course_level, :course_category, :duration)
+                    RETURNING id
+                """), {
+                    'course_id': course_id, 'college_id': college_id, 'course_name': course_name,
+                    'course_level': course_level, 'course_category': course_category, 'duration': duration
+                })
+                inserted_id = result.scalar()
+            else:
+                conn.execute(text("""
+                    INSERT INTO courses (course_id, college_id, course_name, course_level, course_category, duration)
+                    VALUES (:course_id, :college_id, :course_name, :course_level, :course_category, :duration)
+                """), {
+                    'course_id': course_id, 'college_id': college_id, 'course_name': course_name,
+                    'course_level': course_level, 'course_category': course_category, 'duration': duration
+                })
+                inserted_id = conn.execute(text("SELECT last_insert_rowid()")).scalar()
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Course added successfully',
+            'data': {
+                'id': inserted_id,
+                'course_id': course_id,
+                'college_id': college_id,
+                'course_name': course_name,
+                'course_level': course_level,
+                'course_category': course_category,
+                'duration': duration
+            }
+        }), 201
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/courses/<int:id>', methods=['PUT'])
+def update_course(id):
+    try:
+        data = request.get_json(silent=True) or {}
+        course_name = data.get('course_name', '').strip()
+        course_level = data.get('course_level', '').strip()
+        course_category = data.get('course_category', '').strip()
+        duration = data.get('duration')
+
+        if not course_name or not course_level or not course_category or duration is None:
+            return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
+
+        try:
+            duration = int(duration)
+        except ValueError:
+            return jsonify({'status': 'error', 'message': 'Duration must be an integer'}), 400
+
+        with engine.begin() as conn:
+            # Check if course exists
+            course = conn.execute(text("SELECT college_id FROM courses WHERE id = :id"), {'id': id}).mappings().first()
+            if not course:
+                return jsonify({'status': 'error', 'message': 'Course not found'}), 404
+            
+            college_id = course['college_id']
+
+            # Check if updating to a duplicate course name under the same college
+            dup_check = conn.execute(text("""
+                SELECT 1 FROM courses 
+                WHERE college_id = :college_id AND LOWER(course_name) = LOWER(:course_name) AND id != :id
+            """), {'college_id': college_id, 'course_name': course_name, 'id': id}).scalar()
+            if dup_check:
+                return jsonify({'status': 'error', 'message': 'This college already offers a course with this name'}), 400
+
+            # Determine course_id for the updated name
+            existing_course_id = conn.execute(text("""
+                SELECT course_id FROM courses 
+                WHERE LOWER(course_name) = LOWER(:course_name) AND id != :id
+                LIMIT 1
+            """), {'course_name': course_name, 'id': id}).scalar()
+
+            if existing_course_id:
+                course_id = existing_course_id
+            else:
+                max_id = conn.execute(text("SELECT MAX(course_id) FROM courses")).scalar()
+                course_id = (max_id + 1) if max_id is not None else 1
+
+            # Update database
+            conn.execute(text("""
+                UPDATE courses
+                SET course_id = :course_id,
+                    course_name = :course_name,
+                    course_level = :course_level,
+                    course_category = :course_category,
+                    duration = :duration
+                WHERE id = :id
+            """), {
+                'course_id': course_id,
+                'course_name': course_name,
+                'course_level': course_level,
+                'course_category': course_category,
+                'duration': duration,
+                'id': id
+            })
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Course updated successfully',
+            'data': {
+                'id': id,
+                'course_id': course_id,
+                'college_id': college_id,
+                'course_name': course_name,
+                'course_level': course_level,
+                'course_category': course_category,
+                'duration': duration
+            }
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/courses/<int:id>', methods=['DELETE'])
+def delete_course(id):
+    try:
+        with engine.begin() as conn:
+            # Check if course exists
+            course = conn.execute(text("SELECT college_id, course_name FROM courses WHERE id = :id"), {'id': id}).mappings().first()
+            if not course:
+                return jsonify({'status': 'error', 'message': 'Course not found'}), 404
+
+            conn.execute(text("DELETE FROM courses WHERE id = :id"), {'id': id})
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Course deleted successfully',
+            'data': {
+                'id': id,
+                'college_id': course['college_id'],
+                'course_name': course['course_name']
+            }
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 if __name__ == '__main__':
     # Run on port 5000, disabling the auto-reloader to prevent Windows crashes
