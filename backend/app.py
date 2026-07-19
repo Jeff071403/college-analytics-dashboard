@@ -3,12 +3,22 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from sqlalchemy import text
 from db import get_engine
+from migrations import run_migrations
 
 app = Flask(__name__)
 CORS(app)
 
 # Retrieve the DB engine
 engine, db_type = get_engine()
+
+_migrated_engines = set()
+
+@app.before_request
+def ensure_migrations():
+    if engine not in _migrated_engines:
+        run_migrations(engine)
+        _migrated_engines.add(engine)
+
 
 @app.route('/api/colleges', methods=['GET'])
 def get_colleges():
@@ -38,6 +48,10 @@ def get_colleges():
                 c.university_category,
                 c.hostel_facility,
                 c.nirf_rank_raw,
+                c.ownership,
+                c.latitude,
+                c.longitude,
+                c.google_rating,
                 COALESCE(course_counts.total_course_count, 0) AS course_count
             FROM colleges c
             LEFT JOIN (
@@ -98,7 +112,11 @@ def get_colleges():
                     'university_category': row[12],
                     'hostel_facility': row[13],
                     'nirf_rank_raw': row[14],
-                    'course_count': row[15]
+                    'ownership': row[15],
+                    'latitude': row[16],
+                    'longitude': row[17],
+                    'google_rating': row[18],
+                    'course_count': row[19]
                 })
                 matching_ids.append(row[0])
                 
@@ -190,13 +208,38 @@ def update_college(college_id):
                     nirf_rank,
                     university_category,
                     hostel_facility,
-                    nirf_rank_raw
+                    nirf_rank_raw,
+                    ownership,
+                    google_rating,
+                    latitude,
+                    longitude
                 FROM colleges
                 WHERE college_id = :college_id
             """), {'college_id': college_id}).mappings().first()
 
             if existing is None:
                 return jsonify({'status': 'error', 'message': 'College not found'}), 404
+
+            location_changed = False
+            if 'location_normalized' in data and data['location_normalized'] != existing['location_normalized']:
+                location_changed = True
+            elif 'college_name' in data and data['college_name'] != existing['college_name']:
+                location_changed = True
+
+            lat_val = data.get('latitude')
+            lon_val = data.get('longitude')
+            
+            lat_resolved = None
+            lon_resolved = None
+            if lat_val is not None and lat_val != '':
+                lat_resolved = float(lat_val)
+            elif not location_changed:
+                lat_resolved = existing['latitude']
+                
+            if lon_val is not None and lon_val != '':
+                lon_resolved = float(lon_val)
+            elif not location_changed:
+                lon_resolved = existing['longitude']
 
             update_values = {
                 'college_name': data.get('college_name', existing['college_name']),
@@ -211,6 +254,10 @@ def update_college(college_id):
                 'autonomous': data.get('autonomous', existing['autonomous']),
                 'university_category': data.get('university_category', existing['university_category']),
                 'hostel_facility': data.get('hostel_facility', existing['hostel_facility']),
+                'ownership': data.get('ownership', existing['ownership'] or 'Private'),
+                'google_rating': float(data.get('google_rating', existing['google_rating'] if existing['google_rating'] is not None else 4.0)),
+                'latitude': lat_resolved,
+                'longitude': lon_resolved
             }
 
             if 'nirf_rank_raw' in data:
@@ -254,7 +301,11 @@ def update_college(college_id):
                     nirf_rank = :nirf_rank,
                     university_category = :university_category,
                     hostel_facility = :hostel_facility,
-                    nirf_rank_raw = :nirf_rank_raw
+                    nirf_rank_raw = :nirf_rank_raw,
+                    ownership = :ownership,
+                    google_rating = :google_rating,
+                    latitude = :latitude,
+                    longitude = :longitude
                 WHERE college_id = :college_id
             """), {
                 **update_values,
@@ -271,6 +322,82 @@ def update_college(college_id):
             'message': 'College updated successfully',
             'data': response_data
         })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/colleges', methods=['POST'])
+def add_college():
+    try:
+        data = request.get_json(silent=True) or {}
+        college_name = data.get('college_name', '').strip()
+        if not college_name:
+            return jsonify({'status': 'error', 'message': 'College Name is required'}), 400
+
+        with engine.begin() as conn:
+            max_id = conn.execute(text("SELECT MAX(college_id) FROM colleges")).scalar()
+            new_id = (max_id + 1) if max_id is not None else 1
+
+            import re
+            def parse_nirf(val_str):
+                if not val_str or val_str.strip().lower() in ["not ranked", "nan"]:
+                    return None
+                m = re.search(r'\d+', val_str)
+                return int(m.group()) if m else None
+
+            nirf_rank_raw = data.get('nirf_rank_raw', 'Not Ranked').strip()
+            nirf_rank = parse_nirf(nirf_rank_raw)
+
+            lat_val = data.get('latitude')
+            lon_val = data.get('longitude')
+            lat = float(lat_val) if lat_val is not None and lat_val != '' else None
+            lon = float(lon_val) if lon_val is not None and lon_val != '' else None
+
+            values = {
+                'college_id': new_id,
+                'college_name': college_name,
+                'college_category': data.get('college_category', 'Arts & Science').strip(),
+                'location_raw': data.get('location_raw', 'Unknown').strip(),
+                'location_normalized': data.get('location_normalized', 'Unknown').strip(),
+                'website': data.get('website', '').strip(),
+                'email': data.get('email', '').strip(),
+                'phone': data.get('phone', '').strip(),
+                'naac_grade': data.get('naac_grade', 'Not Listed').strip(),
+                'principal_name': data.get('principal_name', 'Unknown').strip(),
+                'autonomous': data.get('autonomous', 'No').strip(),
+                'university_category': data.get('university_category', 'Unknown').strip(),
+                'hostel_facility': data.get('hostel_facility', 'No Hostel Found').strip(),
+                'nirf_rank_raw': nirf_rank_raw,
+                'nirf_rank': nirf_rank,
+                'ownership': data.get('ownership', 'Private').strip(),
+                'google_rating': float(data.get('google_rating', 4.0)),
+                'latitude': lat,
+                'longitude': lon
+            }
+
+            conn.execute(text("""
+                INSERT INTO colleges (
+                    college_id, college_name, college_category, location_raw, location_normalized,
+                    website, email, phone, naac_grade, principal_name, autonomous, nirf_rank,
+                    university_category, hostel_facility, nirf_rank_raw, ownership, google_rating,
+                    latitude, longitude
+                ) VALUES (
+                    :college_id, :college_name, :college_category, :location_raw, :location_normalized,
+                    :website, :email, :phone, :naac_grade, :principal_name, :autonomous, :nirf_rank,
+                    :university_category, :hostel_facility, :nirf_rank_raw, :ownership, :google_rating,
+                    :latitude, :longitude
+                )
+            """), values)
+
+        # Include course_count = 0 in returning data for immediate frontend rendering
+        values['course_count'] = 0
+        return jsonify({
+            'status': 'success',
+            'message': 'College added successfully',
+            'data': values
+        }), 201
     except Exception as e:
         return jsonify({
             'status': 'error',
