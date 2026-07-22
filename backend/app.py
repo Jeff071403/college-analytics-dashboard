@@ -48,60 +48,91 @@ def start_background_geocoding():
                     print(f"[Background Geocoder] Found {len(colleges_to_geocode)} colleges needing geocoding.")
                     api_key = os.getenv('VITE_GOOGLE_MAPS_API_KEY') or os.getenv('GOOGLE_MAPS_API_KEY')
                     
+                    import re
                     for college in colleges_to_geocode:
-                        time.sleep(1.2) # Sleep to avoid rate limiting
+                        time.sleep(1.5) # Sleep to avoid rate limiting
                         
                         name = college.college_name
-                        area = college.location_raw or college.location_normalized or ''
+                        area_raw = college.location_raw or ''
+                        area_norm = college.location_normalized or ''
                         
-                        # Build query: College Name, Area, Chennai, Tamil Nadu, India (Requirement 1)
-                        query_parts = [name]
-                        if area:
-                            query_parts.append(area)
-                            
-                        if 'chennai' not in (name + ' ' + area).lower():
-                            query_parts.append('Chennai')
-                        if 'tamil nadu' not in (name + ' ' + area).lower():
-                            query_parts.append('Tamil Nadu')
-                        if 'india' not in (name + ' ' + area).lower():
-                            query_parts.append('India')
-                            
-                        query = ", ".join(query_parts)
+                        # Clean parentheses content (like "(Autonomous)", "(Men)")
+                        clean_name = re.sub(r'\(.*?\)', '', name).strip()
+                        clean_name = " ".join(clean_name.split())
                         
-                        # Try Google Geocoding API first
-                        if api_key:
+                        # Build query variations in order of specificity
+                        queries = []
+                        
+                        # Query 1: Clean Name, Area Raw, Area Norm, Chennai, Tamil Nadu, India
+                        parts1 = [clean_name]
+                        if area_raw and area_raw.lower() not in clean_name.lower():
+                            parts1.append(area_raw)
+                        if area_norm and area_norm.lower() not in (clean_name + ' ' + area_raw).lower():
+                            parts1.append(area_norm)
+                        if 'chennai' not in clean_name.lower() and 'chennai' not in area_raw.lower() and 'chennai' not in area_norm.lower():
+                            parts1.append('Chennai')
+                        parts1.append('Tamil Nadu')
+                        parts1.append('India')
+                        queries.append(", ".join(parts1))
+                        
+                        # Query 2: Clean Name, Chennai, Tamil Nadu, India
+                        if 'chennai' not in clean_name.lower():
+                            queries.append(f"{clean_name}, Chennai, Tamil Nadu, India")
+                        else:
+                            queries.append(f"{clean_name}, Tamil Nadu, India")
+                            
+                        # Query 3: Area/City Fallback
+                        if area_raw and area_raw.lower() != 'chennai':
+                            queries.append(f"{area_raw}, Chennai, Tamil Nadu, India")
+                        elif area_norm and area_norm.lower() != 'chennai':
+                            queries.append(f"{area_norm}, Chennai, Tamil Nadu, India")
+                        
+                        # Query 4: City Center absolute fallback
+                        queries.append("Chennai, Tamil Nadu, India")
+                        
+                        lat, lon = None, None
+                        
+                        # Try to resolve coordinates using query candidates
+                        for query in queries:
+                            # 1. Google Geocoding
+                            if api_key:
+                                try:
+                                    url = f"https://maps.googleapis.com/maps/api/geocode/json?address={urllib.parse.quote(query)}&key={api_key}"
+                                    req = urllib.request.Request(url, headers={'User-Agent': 'CollegeAnalyticsPortal/2.0'})
+                                    with urllib.request.urlopen(req, timeout=10) as response:
+                                        res_data = json.loads(response.read().decode())
+                                        if res_data and res_data.get('status') == 'OK' and res_data.get('results'):
+                                            loc = res_data['results'][0]['geometry']['location']
+                                            lat, lon = float(loc['lat']), float(loc['lng'])
+                                            print(f"[Background Geocoder] Google Geocoded via '{query}'")
+                                            break
+                                except Exception as ge_err:
+                                    print(f"[Background Geocoder] Google Geocoding failed for '{query}': {ge_err}")
+                                    
+                            # 2. OSM Nominatim (if Google failed or no key)
                             try:
-                                url = f"https://maps.googleapis.com/maps/api/geocode/json?address={urllib.parse.quote(query)}&key={api_key}"
-                                req = urllib.request.Request(url, headers={'User-Agent': 'CollegeAnalyticsPortal/2.0'})
+                                url = "https://nominatim.openstreetmap.org/search?q=" + urllib.parse.quote(query) + "&format=json&limit=1"
+                                req = urllib.request.Request(url, headers={'User-Agent': 'CollegeAnalyticsPortal/2.0 (jeffe@gmail.com)'})
                                 with urllib.request.urlopen(req, timeout=10) as response:
                                     res_data = json.loads(response.read().decode())
-                                    if res_data and res_data.get('status') == 'OK' and res_data.get('results'):
-                                        loc = res_data['results'][0]['geometry']['location']
-                                        lat, lon = float(loc['lat']), float(loc['lng'])
-                                        
-                                        # Save exact coordinates directly to PostgreSQL (No Jitter)
-                                        college.latitude = lat
-                                        college.longitude = lon
-                                        db.commit()
-                                        print(f"[Background Geocoder] Geocoded '{name}' -> ({lat}, {lon})")
-                                        continue
-                            except Exception as ge_err:
-                                print(f"[Background Geocoder] Google Geocoding failed: {ge_err}")
-                        
-                        # Fallback to OpenStreetMap Nominatim
-                        try:
-                            url = "https://nominatim.openstreetmap.org/search?q=" + urllib.parse.quote(query) + "&format=json&limit=1"
-                            req = urllib.request.Request(url, headers={'User-Agent': 'CollegeAnalyticsPortal/2.0 (jeffe@gmail.com)'})
-                            with urllib.request.urlopen(req, timeout=10) as response:
-                                res_data = json.loads(response.read().decode())
-                                if res_data:
-                                    lat, lon = float(res_data[0]['lat']), float(res_data[0]['lon'])
-                                    college.latitude = lat
-                                    college.longitude = lon
-                                    db.commit()
-                                    print(f"[Background Geocoder] OS Nominatim Geocoded '{name}' -> ({lat}, {lon})")
-                        except Exception as os_err:
-                            print(f"[Background Geocoder] OS Nominatim failed: {os_err}")
+                                    if res_data:
+                                        lat, lon = float(res_data[0]['lat']), float(res_data[0]['lon'])
+                                        print(f"[Background Geocoder] OS Nominatim Geocoded via '{query}'")
+                                        break
+                            except Exception as os_err:
+                                print(f"[Background Geocoder] OS Nominatim failed for '{query}': {os_err}")
+                                if hasattr(os_err, 'code') and os_err.code == 429:
+                                    print("[Background Geocoder] OSM Nominatim returned 429. Aborting query search loop.")
+                                    time.sleep(2)
+                                    break
+                                    
+                        # Save resolved coordinates
+                        if lat is not None and lon is not None:
+                            college.latitude = lat
+                            college.longitude = lon
+                            db.commit()
+                            print(f"[Background Geocoder] Saved '{name}' -> ({lat}, {lon})")
+                            continue
             except Exception as loop_err:
                 print(f"[Background Geocoder] Task loop error: {loop_err}")
             finally:

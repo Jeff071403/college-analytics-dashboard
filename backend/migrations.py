@@ -39,9 +39,18 @@ def run_migrations(engine):
             if 'ugc_recognized' not in columns:
                 print("Adding 'ugc_recognized' column...")
                 conn.execute(text("ALTER TABLE colleges ADD COLUMN ugc_recognized VARCHAR(50) DEFAULT 'No'"))
+            if 'created_at' not in columns:
+                print("Adding 'created_at' column...")
+                conn.execute(text("ALTER TABLE colleges ADD COLUMN created_at DATETIME"))
+            if 'updated_at' not in columns:
+                print("Adding 'updated_at' column...")
+                conn.execute(text("ALTER TABLE colleges ADD COLUMN updated_at DATETIME"))
                 
         # 2. Backfill ownership and ratings if null or defaults
         with engine.begin() as conn:
+            # Set default values for created_at/updated_at
+            conn.execute(text("UPDATE colleges SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL"))
+            conn.execute(text("UPDATE colleges SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL"))
             # Backfill ownership based on name keywords
             conn.execute(text("""
                 UPDATE colleges 
@@ -90,8 +99,14 @@ def background_geocode(engine):
                     # Respect OSM Nominatim rate limits (max 1 query/sec)
                     time.sleep(1.2)
                     
-                    # Build search query as requested
-                    query = f"{name} Chennai Tamil Nadu"
+                    # Build search query accurately using normalized location
+                    query_parts = [name]
+                    if location:
+                        query_parts.append(location)
+                    if 'tamil nadu' not in (name + ' ' + (location or '')).lower():
+                        query_parts.append('Tamil Nadu')
+                    query_parts.append('India')
+                    query = ", ".join(query_parts)
                     coords = geocode_query(query)
                     
                     if not coords:
@@ -165,7 +180,6 @@ def geocode_query(query):
             data = json.loads(response.read().decode())
             if data:
                 return float(data[0]['lat']), float(data[0]['lon'])
-    except Exception as e:
-        # Silently log errors to prevent noise
+    except Exception:
         pass
     return None

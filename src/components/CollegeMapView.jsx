@@ -159,7 +159,7 @@ const getBestGeocodingResult = (results, college) => {
 };
 
 // Error handling helper
-const handleGeocodeError = (status, college) => {
+const handleGeocodeError = (status, college, setMapError) => {
   let errorMsg = "";
   if (status === 'ZERO_RESULTS') {
     errorMsg = `No location found for "${college.college_name}".`;
@@ -173,7 +173,58 @@ const handleGeocodeError = (status, college) => {
     errorMsg = `Google Maps Geocoding failed: ${status}`;
   }
   console.error(`[Geocoding Error] ${errorMsg}`);
-  alert(errorMsg);
+  if (setMapError) {
+    setMapError(errorMsg);
+    setTimeout(() => setMapError(''), 6000);
+  }
+};
+
+const createInfoWindowContent = (college, coords) => {
+  const naac = college.naac_grade || 'Not Accredited';
+  const nirf = college.nirf_rank_raw || 'Not Ranked';
+  
+  const websiteButton = college.website 
+    ? `<a href="${college.website}" target="_blank" rel="noreferrer" style="flex: 1; text-align: center; background: #6366f1; color: white; border-radius: 4px; padding: 6px 0; font-weight: 600; text-decoration: none; font-size: 10px; font-family: sans-serif;">Website</a>`
+    : `<span style="flex: 1; text-align: center; color: #9ca3af; background: #f3f4f6; border-radius: 4px; padding: 6px 0; font-size: 10px; font-family: sans-serif; font-style: italic;">No Website</span>`;
+    
+  return `
+    <div style="font-family: system-ui, -apple-system, sans-serif; font-size: 11px; color: #1e1b4b; padding: 6px; max-width: 260px; min-width: 200px;">
+      <h4 style="margin: 0 0 4px; font-size: 13px; font-weight: 700; color: #4338ca; line-height: 1.3;">
+        ${college.college_name}
+      </h4>
+      <p style="margin: 0 0 6px; color: #6b7280; font-size: 10px;">
+        ${college.college_category} · ${college.location_normalized}
+      </p>
+
+      <div style="margin: 0 0 8px; color: #4b5563; font-size: 10px; display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #f3f4f6; padding-top: 6px;">
+        ${college.location_raw ? `<div><strong>Address:</strong> ${college.location_raw}</div>` : ''}
+        ${college.university_category ? `<div><strong>Affiliation:</strong> ${college.university_category}</div>` : ''}
+        ${college.phone ? `<div><strong>Phone:</strong> ${college.phone}</div>` : ''}
+        ${college.email ? `<div><strong>Email:</strong> ${college.email}</div>` : ''}
+      </div>
+
+      <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px;">
+        <span style="font-size: 9px; font-weight: 700; background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 999px;">
+          NAAC: ${naac}
+        </span>
+        <span style="font-size: 9px; font-weight: 700; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 999px;">
+          NIRF: ${nirf}
+        </span>
+      </div>
+
+      <div style="display: flex; gap: 6px; border-top: 1px solid #f3f4f6; padding-top: 8px; margin-top: 4px;">
+        ${websiteButton}
+        <a 
+          href="https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}" 
+          target="_blank" 
+          rel="noreferrer"
+          style="flex: 1; text-align: center; background: white; color: #374151; border: 1px solid #d1d5db; border-radius: 4px; padding: 6px 0; font-weight: 600; text-decoration: none; font-size: 10px; font-family: sans-serif;"
+        >
+          Open Maps
+        </a>
+      </div>
+    </div>
+  `;
 };
 
 const GOOGLE_MAPS_LIBRARIES = ['marker'];
@@ -269,6 +320,8 @@ export default function CollegeMapView({ colleges, darkMode, onSelectCollege }) 
   });
 
   const [map, setMap] = useState(null);
+  const [mapError, setMapError] = useState('');
+  const [geocodingAborted, setGeocodingAborted] = useState(false);
   const [selectedCollegeMarker, setSelectedCollegeMarker] = useState(null);
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -392,6 +445,13 @@ export default function CollegeMapView({ colleges, darkMode, onSelectCollege }) 
     return filteredColleges.filter(c => getCollegeCoords(c) !== null);
   }, [filteredColleges, getCollegeCoords]);
 
+  const mappedCollegesSerialized = useMemo(() => {
+    return mappedColleges.map(c => {
+      const coords = getCollegeCoords(c);
+      return `${c.college_id}-${coords?.lat}-${coords?.lng}`;
+    }).join('|');
+  }, [mappedColleges, getCollegeCoords]);
+
   // Autocomplete search suggestions
   const suggestions = useMemo(() => {
     return searchQuery.trim() !== '' 
@@ -401,6 +461,7 @@ export default function CollegeMapView({ colleges, darkMode, onSelectCollege }) 
 
   // Sequential client-side geocoding loop for colleges lacking coordinates
   useEffect(() => {
+    if (geocodingAborted) return;
     if (!isLoaded || !window.google || !apiKey) return;
 
     // Identify colleges lacking database coordinates AND lacking cached coordinates
@@ -502,6 +563,15 @@ export default function CollegeMapView({ colleges, darkMode, onSelectCollege }) 
             localStorage.setItem('geocoded_coords_cache', JSON.stringify(updated));
             return updated;
           });
+
+          if (err === 'REQUEST_DENIED') {
+            const errorMsg = "Google Maps API request was denied. Please verify your API key.";
+            setMapError(errorMsg);
+            setGeocodingAborted(true);
+            setTimeout(() => setMapError(''), 10000);
+            console.error('[Geocoding Queue] Google Maps API key is invalid or request denied. Aborting client-side geocoding queue.');
+            break;
+          }
           
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
@@ -543,15 +613,25 @@ export default function CollegeMapView({ colleges, darkMode, onSelectCollege }) 
         });
       }
     }
-  }, [map, mappedColleges, getCollegeCoords]);
+  }, [map, selectedOwnership, selectedCategory, isWomens, isAutonomous, isUnivDept, selectedNaac, isNirf]);
+
+  const infoWindowRef = useRef(null);
 
   // Map callbacks
   const onLoad = useCallback(mapInstance => {
     setMap(mapInstance);
+    const infoWindow = new window.google.maps.InfoWindow();
+    infoWindow.addListener('closeclick', () => {
+      setSelectedCollegeMarker(null);
+    });
+    infoWindowRef.current = infoWindow;
   }, []);
 
   const onUnmount = useCallback(() => {
     setMap(null);
+    if (infoWindowRef.current) {
+      infoWindowRef.current = null;
+    }
   }, []);
 
   const clustererRef = useRef(null);
@@ -567,8 +647,10 @@ export default function CollegeMapView({ colleges, darkMode, onSelectCollege }) 
     });
     markersRef.current = {};
 
+    // Always clear the old clusterer and create a new one to prevent duplicate/ghost markers
     if (clustererRef.current) {
       clustererRef.current.clearMarkers();
+      clustererRef.current = null;
     }
 
     const newMarkers = [];
@@ -581,8 +663,8 @@ export default function CollegeMapView({ colleges, darkMode, onSelectCollege }) 
         title: college.college_name,
       });
 
-      marker.addListener('click', () => {
-        handleMarkerClick(college);
+      marker.addEventListener('gmp-click', () => {
+        handleMarkerClick(college, marker);
       });
 
       markersRef.current[college.college_id] = marker;
@@ -590,26 +672,23 @@ export default function CollegeMapView({ colleges, darkMode, onSelectCollege }) 
     });
 
     if (newMarkers.length > 0) {
-      if (!clustererRef.current) {
-        clustererRef.current = new MarkerClusterer({
-          map,
-          markers: newMarkers
-        });
-      } else {
-        clustererRef.current.addMarkers(newMarkers);
-      }
+      clustererRef.current = new MarkerClusterer({
+        map,
+        markers: newMarkers
+      });
     }
 
     return () => {
       if (clustererRef.current) {
         clustererRef.current.clearMarkers();
+        clustererRef.current = null;
       }
       Object.values(markersRef.current).forEach(marker => {
         marker.map = null;
       });
       markersRef.current = {};
     };
-  }, [map, mappedColleges, getCollegeCoords]);
+  }, [map, mappedCollegesSerialized]);
 
   const handleZoomToCollege = async (college) => {
     // 1. If coordinates exist in DB or cache, use directly (Requirement 2)
@@ -690,7 +769,7 @@ export default function CollegeMapView({ colleges, darkMode, onSelectCollege }) 
         await saveCollegeCoords(college.college_id, coords);
 
       } catch (err) {
-        handleGeocodeError(err, college);
+        handleGeocodeError(err, college, setMapError);
         return;
       }
     }
@@ -702,17 +781,36 @@ export default function CollegeMapView({ colleges, darkMode, onSelectCollege }) 
       setSelectedCollegeMarker(college);
       setSearchQuery(college.college_name);
       setShowDropdown(false);
+
+      // Open InfoWindow programmatically on the corresponding marker anchor
+      const marker = markersRef.current[college.college_id];
+      if (marker && infoWindowRef.current) {
+        infoWindowRef.current.setContent(createInfoWindowContent(college, coords));
+        infoWindowRef.current.open({
+          anchor: marker,
+          map,
+          shouldFocus: false
+        });
+      }
     } else {
       alert(`Could not find coordinates for "${college.college_name}".`);
     }
   };
 
-  const handleMarkerClick = (college) => {
+  const handleMarkerClick = (college, marker) => {
     setSelectedCollegeMarker(college);
     if (map) {
       const coords = getCollegeCoords(college);
       if (coords) {
         map.panTo(coords);
+        if (infoWindowRef.current) {
+          infoWindowRef.current.setContent(createInfoWindowContent(college, coords));
+          infoWindowRef.current.open({
+            anchor: marker,
+            map,
+            shouldFocus: false
+          });
+        }
       }
     }
   };
@@ -727,6 +825,9 @@ export default function CollegeMapView({ colleges, darkMode, onSelectCollege }) 
     setIsNirf(false);
     setSearchQuery('');
     setSelectedCollegeMarker(null);
+    if (infoWindowRef.current) {
+      infoWindowRef.current.close();
+    }
   };
 
   const toggleFullScreen = () => {
@@ -741,14 +842,13 @@ export default function CollegeMapView({ colleges, darkMode, onSelectCollege }) 
 
   const mapOptions = useMemo(() => {
     return {
-      styles: darkMode ? darkMapStyle : [],
       zoomControl: true,
       streetViewControl: false,
       mapTypeControl: false,
       fullscreenControl: false,
       mapId: 'DEMO_MAP_ID'
     };
-  }, [darkMode]);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -761,6 +861,11 @@ export default function CollegeMapView({ colleges, darkMode, onSelectCollege }) 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
         {/* Left Control Panel */}
         <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+          {mapError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-[10px] font-semibold dark:bg-red-950/20 dark:border-red-900 dark:text-red-400">
+              {mapError}
+            </div>
+          )}
           <div className="border-b border-gray-100 dark:border-slate-800 pb-3 flex justify-between items-center">
             <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-600">Map Controls</h3>
             <button 
@@ -947,70 +1052,6 @@ export default function CollegeMapView({ colleges, darkMode, onSelectCollege }) 
               onUnmount={onUnmount}
               options={mapOptions}
             >
-              {selectedCollegeMarker && getCollegeCoords(selectedCollegeMarker) && (
-                <InfoWindow
-                  position={getCollegeCoords(selectedCollegeMarker)}
-                  onCloseClick={() => setSelectedCollegeMarker(null)}
-                >
-                  <div style={{ fontFamily: "System-UI, -apple-system, sans-serif", fontSize: '11px', color: '#1e1b4b', padding: '4px', maxWidth: '280px', minWidth: '200px' }}>
-                    <h4 style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: 700, color: '#4338ca', lineHeight: 1.3 }}>
-                      {selectedCollegeMarker.college_name}
-                    </h4>
-                    <p style={{ margin: '0 0 6px', color: '#6b7280', fontSize: '10px' }}>
-                      {selectedCollegeMarker.college_category} · {selectedCollegeMarker.location_normalized}
-                    </p>
-
-                    <div style={{ margin: '0 0 8px', color: '#4b5563', fontSize: '10px', display: 'flex', flexDirection: 'column', gap: '3px', borderTop: '1px solid #f3f4f6', paddingTop: '6px' }}>
-                      {selectedCollegeMarker.location_raw && (
-                        <div><strong>Address:</strong> {selectedCollegeMarker.location_raw}</div>
-                      )}
-                      {selectedCollegeMarker.university_category && (
-                        <div><strong>Affiliation:</strong> {selectedCollegeMarker.university_category}</div>
-                      )}
-                      {selectedCollegeMarker.phone && (
-                        <div><strong>Phone:</strong> {selectedCollegeMarker.phone}</div>
-                      )}
-                      {selectedCollegeMarker.email && (
-                        <div><strong>Email:</strong> {selectedCollegeMarker.email}</div>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '9px', fontWeight: 700, background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '999px' }}>
-                        NAAC: {selectedCollegeMarker.naac_grade || 'Not Accredited'}
-                      </span>
-                      <span style={{ fontSize: '9px', fontWeight: 700, background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: '999px' }}>
-                        NIRF: {selectedCollegeMarker.nirf_rank_raw || 'Not Ranked'}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '6px', borderTop: '1px solid #f3f4f6', paddingTop: '8px', marginTop: '4px' }}>
-                      {selectedCollegeMarker.website ? (
-                        <a 
-                          href={selectedCollegeMarker.website} 
-                          target="_blank" 
-                          rel="noreferrer" 
-                          style={{ flex: 1, textAlign: 'center', background: '#6366f1', color: 'white', borderRadius: '4px', padding: '4px 0', fontWeight: 600, textDecoration: 'none', fontSize: '9px' }}
-                        >
-                          Website
-                        </a>
-                      ) : (
-                        <span style={{ flex: 1, textAlign: 'center', color: '#9ca3af', background: '#f3f4f6', borderRadius: '4px', padding: '4px 0', fontSize: '9px', fontStyle: 'italic' }}>
-                          No Website
-                        </span>
-                      )}
-                      <a 
-                        href={`https://www.google.com/maps/search/?api=1&query=${getCollegeCoords(selectedCollegeMarker).lat},${getCollegeCoords(selectedCollegeMarker).lng}`} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        style={{ flex: 1, textAlign: 'center', border: '1px solid #ddd', borderRadius: '4px', padding: '4px 0', color: '#4b5563', textDecoration: 'none', fontWeight: 600, fontSize: '9px' }}
-                      >
-                        Open Maps
-                      </a>
-                    </div>
-                  </div>
-                </InfoWindow>
-              )}
             </GoogleMap>
           )}
         </div>

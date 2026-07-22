@@ -694,7 +694,7 @@ export default function App() {
               )}
 
               {currentView === 'college_map' && (
-                <CollegeMapView colleges={colleges} darkMode={darkMode} onSelectCollege={setSelectedCollege} />
+                <CollegeMapView colleges={colleges} darkMode={darkMode} onSelectCollege={setSelectedCollege} selectedCollege={selectedCollege} />
               )}
 
               {currentView === 'about' && (

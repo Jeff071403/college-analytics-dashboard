@@ -11,54 +11,32 @@ sys.path.insert(0, str(ROOT))
 import app as backend_app
 
 
+from models import Base
 class UpdateCollegeRouteTest(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.db_path = Path(self.temp_dir.name) / "test_colleges.db"
         self.engine = create_engine(f"sqlite:///{self.db_path}")
 
+        # Create all tables using metadata to ensure all columns (including new ones) exist in the tests
+        Base.metadata.create_all(self.engine)
+
         with self.engine.begin() as conn:
-            conn.execute(text("""
-                CREATE TABLE colleges (
-                    college_id INTEGER PRIMARY KEY,
-                    college_name VARCHAR(255) NOT NULL,
-                    college_category VARCHAR(100) NOT NULL,
-                    location_raw VARCHAR(100) NOT NULL,
-                    location_normalized VARCHAR(100) NOT NULL,
-                    website VARCHAR(255),
-                    email VARCHAR(255),
-                    phone VARCHAR(100),
-                    naac_grade VARCHAR(50) NOT NULL,
-                    principal_name VARCHAR(255),
-                    autonomous VARCHAR(50) NOT NULL,
-                    nirf_rank INTEGER,
-                    university_category VARCHAR(255) NOT NULL,
-                    hostel_facility VARCHAR(100) NOT NULL,
-                    nirf_rank_raw VARCHAR(100) NOT NULL
-                )
-            """))
-            conn.execute(text("""
-                CREATE TABLE courses (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    course_id INTEGER NOT NULL,
-                    college_id INTEGER NOT NULL,
-                    course_name VARCHAR(255) NOT NULL,
-                    course_level VARCHAR(50) NOT NULL,
-                    course_category VARCHAR(100) NOT NULL,
-                    duration INTEGER NOT NULL
-                )
-            """))
             conn.execute(text("""
                 INSERT INTO colleges (
                     college_id, college_name, college_category, location_raw,
                     location_normalized, website, email, phone, naac_grade,
                     principal_name, autonomous, nirf_rank, university_category,
-                    hostel_facility, nirf_rank_raw
+                    hostel_facility, nirf_rank_raw,
+                    bus_facility, placement_score, co_ed, ugc_recognized,
+                    google_rating, latitude, longitude, ownership
                 ) VALUES (
                     :college_id, :college_name, :college_category, :location_raw,
                     :location_normalized, :website, :email, :phone, :naac_grade,
                     :principal_name, :autonomous, :nirf_rank, :university_category,
-                    :hostel_facility, :nirf_rank_raw
+                    :hostel_facility, :nirf_rank_raw,
+                    :bus_facility, :placement_score, :co_ed, :ugc_recognized,
+                    :google_rating, :latitude, :longitude, :ownership
                 )
             """), {
                 "college_id": 1,
@@ -75,7 +53,15 @@ class UpdateCollegeRouteTest(unittest.TestCase):
                 "nirf_rank": 10,
                 "university_category": "State University",
                 "hostel_facility": "Boys Only",
-                "nirf_rank_raw": "10"
+                "nirf_rank_raw": "10",
+                "bus_facility": "No",
+                "placement_score": 0.0,
+                "co_ed": "Co-ed",
+                "ugc_recognized": "No",
+                "google_rating": 4.0,
+                "latitude": None,
+                "longitude": None,
+                "ownership": "Private"
             })
             conn.execute(text("""
                 INSERT INTO courses (
@@ -92,6 +78,8 @@ class UpdateCollegeRouteTest(unittest.TestCase):
                 )
             """))
 
+        from db import db_session
+        db_session.configure(bind=self.engine)
         backend_app.engine = self.engine
         backend_app.db_type = "sqlite"
         self.client = backend_app.app.test_client()
