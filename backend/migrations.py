@@ -5,6 +5,7 @@ import urllib.parse
 import json
 import time
 import random
+import os
 
 def run_migrations(engine):
     print("Running database migrations...")
@@ -26,6 +27,18 @@ def run_migrations(engine):
             if 'longitude' not in columns:
                 print("Adding 'longitude' column...")
                 conn.execute(text("ALTER TABLE colleges ADD COLUMN longitude FLOAT"))
+            if 'bus_facility' not in columns:
+                print("Adding 'bus_facility' column...")
+                conn.execute(text("ALTER TABLE colleges ADD COLUMN bus_facility VARCHAR(50) DEFAULT 'No'"))
+            if 'placement_score' not in columns:
+                print("Adding 'placement_score' column...")
+                conn.execute(text("ALTER TABLE colleges ADD COLUMN placement_score FLOAT DEFAULT 0.0"))
+            if 'co_ed' not in columns:
+                print("Adding 'co_ed' column...")
+                conn.execute(text("ALTER TABLE colleges ADD COLUMN co_ed VARCHAR(50) DEFAULT 'Co-ed'"))
+            if 'ugc_recognized' not in columns:
+                print("Adding 'ugc_recognized' column...")
+                conn.execute(text("ALTER TABLE colleges ADD COLUMN ugc_recognized VARCHAR(50) DEFAULT 'No'"))
                 
         # 2. Backfill ownership and ratings if null or defaults
         with engine.begin() as conn:
@@ -98,17 +111,14 @@ def background_geocode(engine):
                         
                     if coords:
                         lat, lon = coords
-                        # Add a tiny random jitter (approx +/- 200m) to prevent stacked markers
-                        lat_jitter = lat + random.uniform(-0.003, 0.003)
-                        lon_jitter = lon + random.uniform(-0.003, 0.003)
                         
                         with engine.begin() as conn:
                             conn.execute(text("""
                                 UPDATE colleges 
                                 SET latitude = :lat, longitude = :lon 
                                 WHERE college_id = :id
-                            """), {'lat': lat_jitter, 'lon': lon_jitter, 'id': college_id})
-                        print(f"Geocoded college {college_id}: '{name}' -> ({lat_jitter}, {lon_jitter})")
+                            """), {'lat': lat, 'lon': lon, 'id': college_id})
+                        print(f"Geocoded college {college_id}: '{name}' -> ({lat}, {lon})")
                     else:
                         print(f"Could not geocode college {college_id}: '{name}'")
             
@@ -119,6 +129,35 @@ def background_geocode(engine):
         time.sleep(30)
 
 def geocode_query(query):
+    # Try to load API key from environment or .env file manually
+    api_key = os.environ.get('VITE_GOOGLE_MAPS_API_KEY') or os.environ.get('GOOGLE_MAPS_API_KEY')
+    if not api_key:
+        try:
+            if os.path.exists('.env'):
+                with open('.env', 'r') as f:
+                    for line in f:
+                        if line.strip().startswith('VITE_GOOGLE_MAPS_API_KEY='):
+                            api_key = line.split('=', 1)[1].strip()
+                            # Strip quotes if present
+                            if (api_key.startswith('"') and api_key.endswith('"')) or (api_key.startswith("'") and api_key.endswith("'")):
+                                api_key = api_key[1:-1]
+                            break
+        except Exception:
+            pass
+
+    if api_key:
+        try:
+            url = f"https://maps.googleapis.com/maps/api/geocode/json?address={urllib.parse.quote(query)}&key={api_key}"
+            req = urllib.request.Request(url, headers={'User-Agent': 'CollegeAnalyticsPortal/2.0'})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = json.loads(response.read().decode())
+                if data and data.get('status') == 'OK' and data.get('results'):
+                    loc = data['results'][0]['geometry']['location']
+                    return float(loc['lat']), float(loc['lng'])
+        except Exception:
+            pass
+            
+    # Fallback to OpenStreetMap Nominatim
     try:
         url = "https://nominatim.openstreetmap.org/search?q=" + urllib.parse.quote(query) + "&format=json&limit=1"
         req = urllib.request.Request(url, headers={'User-Agent': 'CollegeAnalyticsPortal/2.0 (jeffe@gmail.com)'})

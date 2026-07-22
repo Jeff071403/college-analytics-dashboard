@@ -93,12 +93,19 @@ def clean_data():
     df['university_category'] = df['University Category'].fillna("Unknown").apply(lambda x: str(x).strip())
     df['hostel_facility'] = df['Hostel Facility'].fillna("No Hostel Found").apply(lambda x: str(x).strip())
     
+    # Parse newly added columns
+    df['bus_facility'] = df['Bus Facility'].fillna("No").apply(lambda x: "Yes" if str(x).strip().lower() == "yes" else "No")
+    df['placement_score'] = pd.to_numeric(df['Estimated Placement Score'], errors='coerce').fillna(0.0)
+    df['co_ed'] = df['Co_Ed'].fillna("Co-ed").apply(lambda x: str(x).strip())
+    df['ugc_recognized'] = df['UGC_Recognized'].fillna("No").apply(lambda x: "Yes" if str(x).strip().lower() == "yes" else "No")
+    
     # Select columns we need for the dashboard
     cleaned_df = df[[
         'college_id', 'college_name', 'college_category', 'location_raw', 
         'location_normalized', 'website', 'email', 'phone', 'naac_grade', 
         'principal_name', 'autonomous', 'nirf_rank', 'university_category',
-        'hostel_facility', 'nirf_rank_raw'
+        'hostel_facility', 'nirf_rank_raw', 'bus_facility', 'placement_score',
+        'co_ed', 'ugc_recognized'
     ]].copy()
     
     return cleaned_df
@@ -110,6 +117,7 @@ def load_to_db():
         
         # Get DB engine
         engine, db_type = get_engine()
+        from sqlalchemy import Float
         metadata = MetaData()
         
         # Define tables
@@ -129,7 +137,11 @@ def load_to_db():
             Column('nirf_rank', Integer, nullable=True),
             Column('university_category', String(255), nullable=False),
             Column('hostel_facility', String(100), nullable=False),
-            Column('nirf_rank_raw', String(100), nullable=False)
+            Column('nirf_rank_raw', String(100), nullable=False),
+            Column('bus_facility', String(50), nullable=False, server_default='No'),
+            Column('placement_score', Float, nullable=True),
+            Column('co_ed', String(50), nullable=False, server_default='Co-ed'),
+            Column('ugc_recognized', String(50), nullable=False, server_default='No')
         )
         
         # Define courses table to ensure drop_all handles constraints correctly in PostgreSQL

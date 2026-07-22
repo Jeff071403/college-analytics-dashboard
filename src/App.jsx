@@ -72,6 +72,9 @@ export default function App() {
   const [selectedNirf, setSelectedNirf] = useState('');
   const [selectedUnivCategory, setSelectedUnivCategory] = useState('');
   const [selectedHostel, setSelectedHostel] = useState('');
+  const [selectedCoEd, setSelectedCoEd] = useState('');
+  const [selectedBus, setSelectedBus] = useState('');
+  const [selectedUgc, setSelectedUgc] = useState('');
   const [activeCategoryTab, setActiveCategoryTab] = useState('All');
   
   // Course Filter States (EXACT ORIGINAL LOGIC)
@@ -133,7 +136,11 @@ export default function App() {
     ownership: 'Private',
     google_rating: '4.0',
     latitude: '',
-    longitude: ''
+    longitude: '',
+    bus_facility: 'No',
+    placement_score: '0.0',
+    co_ed: 'Co-ed',
+    ugc_recognized: 'No'
   });
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
@@ -189,7 +196,11 @@ export default function App() {
       ownership: college.ownership || 'Private',
       google_rating: college.google_rating !== undefined ? String(college.google_rating) : '4.0',
       latitude: college.latitude !== null && college.latitude !== undefined ? String(college.latitude) : '',
-      longitude: college.longitude !== null && college.longitude !== undefined ? String(college.longitude) : ''
+      longitude: college.longitude !== null && college.longitude !== undefined ? String(college.longitude) : '',
+      bus_facility: college.bus_facility || 'No',
+      placement_score: college.placement_score !== undefined && college.placement_score !== null ? String(college.placement_score) : '0.0',
+      co_ed: college.co_ed || 'Co-ed',
+      ugc_recognized: college.ugc_recognized || 'No'
     });
     setSaveStatus(null);
     setSaveMessage('');
@@ -412,6 +423,9 @@ export default function App() {
     setSelectedHostel('');
     setSelectedCourseLevel('');
     setSelectedCourseName('');
+    setSelectedCoEd('');
+    setSelectedBus('');
+    setSelectedUgc('');
     setActiveCategoryTab('All');
   };
 
@@ -426,6 +440,9 @@ export default function App() {
     if (selectedNirf === 'unranked' && college.nirf_rank) return false;
     if (selectedUnivCategory && college.university_category !== selectedUnivCategory) return false;
     if (selectedHostel && college.hostel_facility !== selectedHostel) return false;
+    if (selectedCoEd && college.co_ed !== selectedCoEd) return false;
+    if (selectedBus && college.bus_facility !== selectedBus) return false;
+    if (selectedUgc && college.ugc_recognized !== selectedUgc) return false;
     return true;
   });
 
@@ -604,6 +621,9 @@ export default function App() {
                   selectedHostel={selectedHostel} setSelectedHostel={setSelectedHostel}
                   selectedCourseLevel={selectedCourseLevel} setSelectedCourseLevel={setSelectedCourseLevel}
                   selectedCourseName={selectedCourseName} setSelectedCourseName={setSelectedCourseName}
+                  selectedCoEd={selectedCoEd} setSelectedCoEd={setSelectedCoEd}
+                  selectedBus={selectedBus} setSelectedBus={setSelectedBus}
+                  selectedUgc={selectedUgc} setSelectedUgc={setSelectedUgc}
                   activeCategoryTab={activeCategoryTab} setActiveCategoryTab={setActiveCategoryTab}
                   handleClearFilters={handleClearFilters}
                   getCategoryEmoji={getCategoryEmoji}
@@ -693,6 +713,7 @@ export default function App() {
           onClose={() => setSelectedCollege(null)}
           onSelectRelated={(related) => setSelectedCollege(related)}
           allColleges={colleges}
+          darkMode={darkMode}
         />
       )}
 

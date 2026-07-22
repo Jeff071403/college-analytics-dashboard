@@ -19,7 +19,11 @@ export default function AddCollegeView({ onCollegeAdded, categories, locations, 
     ownership: 'Private',
     google_rating: '4.0',
     latitude: '',
-    longitude: ''
+    longitude: '',
+    bus_facility: 'No',
+    placement_score: '0.0',
+    co_ed: 'Co-ed',
+    ugc_recognized: 'No'
   };
 
   const [formState, setFormState] = useState(defaultForm);
@@ -114,6 +118,57 @@ export default function AddCollegeView({ onCollegeAdded, categories, locations, 
               <option value="Private">Private (Self-financing / Aided)</option>
               <option value="Government">Government (State / Central)</option>
             </select>
+          </div>
+
+          <div>
+            <label className="form-label text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Gender Policy (Co-Ed)</label>
+            <select 
+              value={formState.co_ed} 
+              onChange={e => setFormState({ ...formState, co_ed: e.target.value })} 
+              className="form-input text-xs dark:bg-slate-800 dark:border-slate-700"
+            >
+              <option value="Co-ed">Co-educational</option>
+              <option value="Women">Women Only</option>
+              <option value="Men">Men Only</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="form-label text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Bus Facility</label>
+            <select 
+              value={formState.bus_facility} 
+              onChange={e => setFormState({ ...formState, bus_facility: e.target.value })} 
+              className="form-input text-xs dark:bg-slate-800 dark:border-slate-700"
+            >
+              <option value="No">No Bus Facility</option>
+              <option value="Yes">Bus Facility Available</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="form-label text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">UGC Recognized</label>
+            <select 
+              value={formState.ugc_recognized} 
+              onChange={e => setFormState({ ...formState, ugc_recognized: e.target.value })} 
+              className="form-input text-xs dark:bg-slate-800 dark:border-slate-700"
+            >
+              <option value="No">No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="form-label text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Estimated Placement Score (0.0 to 10.0)</label>
+            <input 
+              type="number" 
+              step="0.1" 
+              min="0" 
+              max="10"
+              value={formState.placement_score} 
+              onChange={e => setFormState({ ...formState, placement_score: e.target.value })} 
+              className="form-input text-xs dark:bg-slate-800 dark:border-slate-700" 
+              placeholder="e.g. 7.5"
+            />
           </div>
 
           <div>

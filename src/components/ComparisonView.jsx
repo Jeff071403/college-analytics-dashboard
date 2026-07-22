@@ -87,6 +87,12 @@ export default function ComparisonView({ colleges }) {
         fullMark: 100
       },
       {
+        subject: 'Placement Rating',
+        A: (parseFloat(college1.placement_score) || 0) * 10, // Scale 0-10 to 100
+        B: (parseFloat(college2.placement_score) || 0) * 10,
+        fullMark: 100
+      },
+      {
         subject: 'Hostel Facility',
         A: college1.hostel_facility && college1.hostel_facility !== 'No Hostel Found' ? 100 : 0,
         B: college2.hostel_facility && college2.hostel_facility !== 'No Hostel Found' ? 100 : 0,
@@ -105,6 +111,11 @@ export default function ComparisonView({ colleges }) {
         name: 'Google Rating',
         [college1.college_name]: college1.google_rating || 0,
         [college2.college_name]: college2.google_rating || 0
+      },
+      {
+        name: 'Placement Score',
+        [college1.college_name]: parseFloat(college1.placement_score) || 0,
+        [college2.college_name]: parseFloat(college2.placement_score) || 0
       },
       {
         name: 'NAAC Tier (1-10)',
@@ -163,6 +174,37 @@ export default function ComparisonView({ colleges }) {
       insights.push(`<strong>${college1.college_name}</strong> has a higher student/visitor Google rating (${r1}★) than <strong>${college2.college_name}</strong> (${r2}★).`);
     } else if (r2 > r1) {
       insights.push(`<strong>${college2.college_name}</strong> has a higher student/visitor Google rating (${r2}★) than <strong>${college1.college_name}</strong> (${r1}★).`);
+    }
+
+    // Placement score comparison
+    const p1 = parseFloat(college1.placement_score) || 0;
+    const p2 = parseFloat(college2.placement_score) || 0;
+    if (p1 > p2) {
+      insights.push(`<strong>${college1.college_name}</strong> has a higher Estimated Placement Score (${p1}/10) compared to <strong>${college2.college_name}</strong> (${p2}/10).`);
+    } else if (p2 > p1) {
+      insights.push(`<strong>${college2.college_name}</strong> has a higher Estimated Placement Score (${p2}/10) compared to <strong>${college1.college_name}</strong> (${p1}/10).`);
+    } else if (p1 > 0) {
+      insights.push(`Both colleges have the same Estimated Placement Score (${p1}/10).`);
+    }
+
+    // Co-Ed comparison
+    const g1 = college1.co_ed || 'Co-ed';
+    const g2 = college2.co_ed || 'Co-ed';
+    if (g1 === g2) {
+      insights.push(`Both are <strong>${g1}</strong> institutions.`);
+    } else {
+      insights.push(`<strong>${college1.college_name}</strong> is a <strong>${g1}</strong> institution, whereas <strong>${college2.college_name}</strong> is <strong>${g2}</strong>.`);
+    }
+
+    // Bus facility comparison
+    const b1 = college1.bus_facility || 'No';
+    const b2 = college2.bus_facility || 'No';
+    if (b1 === 'Yes' && b2 === 'Yes') {
+      insights.push(`Both institutions offer transit bus facilities.`);
+    } else if (b1 === 'Yes') {
+      insights.push(`Only <strong>${college1.college_name}</strong> lists transit bus facilities.`);
+    } else if (b2 === 'Yes') {
+      insights.push(`Only <strong>${college2.college_name}</strong> lists transit bus facilities.`);
     }
 
     // Website availability
@@ -397,11 +439,39 @@ export default function ComparisonView({ colleges }) {
                       Phone: {college2.phone || 'Not Available'}
                     </td>
                   </tr>
-                  {/* Hostel */}
+                   {/* Hostel */}
                   <tr>
                     <td className="p-3 font-semibold bg-gray-50/30 dark:bg-slate-800/10">Hostel Facility</td>
                     <td className="p-3">{college1.hostel_facility}</td>
                     <td className="p-3">{college2.hostel_facility}</td>
+                  </tr>
+                  {/* Co-Ed Status */}
+                  <tr>
+                    <td className="p-3 font-semibold bg-gray-50/30 dark:bg-slate-800/10">Gender Policy</td>
+                    <td className="p-3">{college1.co_ed || 'Co-ed'}</td>
+                    <td className="p-3">{college2.co_ed || 'Co-ed'}</td>
+                  </tr>
+                  {/* Bus Facility */}
+                  <tr>
+                    <td className="p-3 font-semibold bg-gray-50/30 dark:bg-slate-800/10">Bus Facility</td>
+                    <td className={`p-3 ${getHighlightClass(college1.bus_facility, college2.bus_facility, college1.bus_facility === 'Yes')}`}>{college1.bus_facility || 'No'}</td>
+                    <td className={`p-3 ${getHighlightClass(college2.bus_facility, college1.bus_facility, college2.bus_facility === 'Yes')}`}>{college2.bus_facility || 'No'}</td>
+                  </tr>
+                  {/* UGC Recognized */}
+                  <tr>
+                    <td className="p-3 font-semibold bg-gray-50/30 dark:bg-slate-800/10">UGC Recognized</td>
+                    <td className={`p-3 ${getHighlightClass(college1.ugc_recognized, college2.ugc_recognized, college1.ugc_recognized === 'Yes')}`}>{college1.ugc_recognized || 'No'}</td>
+                    <td className={`p-3 ${getHighlightClass(college2.ugc_recognized, college1.ugc_recognized, college2.ugc_recognized === 'Yes')}`}>{college2.ugc_recognized || 'No'}</td>
+                  </tr>
+                  {/* Placement Score */}
+                  <tr>
+                    <td className="p-3 font-semibold bg-gray-50/30 dark:bg-slate-800/10">Estimated Placement Score</td>
+                    <td className={`p-3 font-bold ${getHighlightClass(parseFloat(college1.placement_score) || 0, parseFloat(college2.placement_score) || 0, (parseFloat(college1.placement_score) || 0) > (parseFloat(college2.placement_score) || 0))}`}>
+                      {college1.placement_score !== undefined ? `${college1.placement_score} / 10` : '0.0 / 10'}
+                    </td>
+                    <td className={`p-3 font-bold ${getHighlightClass(parseFloat(college2.placement_score) || 0, parseFloat(college1.placement_score) || 0, (parseFloat(college2.placement_score) || 0) > (parseFloat(college1.placement_score) || 0))}`}>
+                      {college2.placement_score !== undefined ? `${college2.placement_score} / 10` : '0.0 / 10'}
+                    </td>
                   </tr>
                   {/* Courses Count */}
                   <tr>

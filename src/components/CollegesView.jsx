@@ -14,7 +14,8 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
-  Plus
+  Plus,
+  ArrowUpDown
 } from 'lucide-react';
 
 export default function CollegesView({ 
@@ -41,6 +42,9 @@ export default function CollegesView({
   selectedHostel, setSelectedHostel,
   selectedCourseLevel, setSelectedCourseLevel,
   selectedCourseName, setSelectedCourseName,
+  selectedCoEd, setSelectedCoEd,
+  selectedBus, setSelectedBus,
+  selectedUgc, setSelectedUgc,
   activeCategoryTab, setActiveCategoryTab,
   handleClearFilters,
   
@@ -94,7 +98,8 @@ export default function CollegesView({
     searchText.trim() !== '', selectedCategory !== '', selectedLocation !== '',
     selectedNaac !== '', selectedAutonomous !== '', selectedNirf !== '',
     selectedUnivCategory !== '', selectedHostel !== '',
-    selectedCourseLevel !== '', selectedCourseName !== ''
+    selectedCourseLevel !== '', selectedCourseName !== '',
+    selectedCoEd !== '', selectedBus !== '', selectedUgc !== ''
   ].filter(Boolean).length;
 
   const handleCategorySelect = (catName) => {
@@ -105,7 +110,7 @@ export default function CollegesView({
 
   // Exporters
   const exportCSV = () => {
-    const headers = ['College Name,Category,Ownership,University,NAAC Grade,NIRF Rank,Website\n'];
+    const headers = ['College Name,Category,Ownership,University,NAAC Grade,NIRF Rank,Co-Ed,Bus,UGC,Placement Score,Website\n'];
     const rows = sortedColleges.map(c => {
       const name = c.college_name.replace(/"/g, '""');
       const category = c.college_category;
@@ -113,8 +118,12 @@ export default function CollegesView({
       const university = (c.university_category || '').replace(/"/g, '""');
       const naac = c.naac_grade;
       const nirf = c.nirf_rank_raw;
+      const coEd = c.co_ed || 'Co-ed';
+      const bus = c.bus_facility || 'No';
+      const ugc = c.ugc_recognized || 'No';
+      const placement = c.placement_score !== undefined ? c.placement_score : 0;
       const website = c.website || '';
-      return `"${name}","${category}","${ownership}","${university}","${naac}","${nirf}","${website}"`;
+      return `"${name}","${category}","${ownership}","${university}","${naac}","${nirf}","${coEd}","${bus}","${ugc}","${placement}","${website}"`;
     });
     const blob = new Blob([headers.concat(rows.join('\n'))], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -124,9 +133,9 @@ export default function CollegesView({
   };
 
   const exportExcel = () => {
-    let html = `<table><thead><tr><th>College Name</th><th>Category</th><th>Ownership</th><th>University</th><th>NAAC Grade</th><th>NIRF Rank</th><th>Website</th></tr></thead><tbody>`;
+    let html = `<table><thead><tr><th>College Name</th><th>Category</th><th>Ownership</th><th>University</th><th>NAAC Grade</th><th>NIRF Rank</th><th>Co-Ed</th><th>Bus</th><th>UGC</th><th>Placement Score</th><th>Website</th></tr></thead><tbody>`;
     sortedColleges.forEach(c => {
-      html += `<tr><td>${c.college_name}</td><td>${c.college_category}</td><td>${c.ownership || 'Private'}</td><td>${c.university_category || ''}</td><td>${c.naac_grade}</td><td>${c.nirf_rank_raw}</td><td>${c.website || ''}</td></tr>`;
+      html += `<tr><td>${c.college_name}</td><td>${c.college_category}</td><td>${c.ownership || 'Private'}</td><td>${c.university_category || ''}</td><td>${c.naac_grade}</td><td>${c.nirf_rank_raw}</td><td>${c.co_ed || 'Co-ed'}</td><td>${c.bus_facility || 'No'}</td><td>${c.ugc_recognized || 'No'}</td><td>${c.placement_score || 0}</td><td>${c.website || ''}</td></tr>`;
     });
     html += '</tbody></table>';
     const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
@@ -163,6 +172,10 @@ export default function CollegesView({
               <th>University</th>
               <th>NAAC</th>
               <th>NIRF</th>
+              <th>Co-Ed</th>
+              <th>Bus</th>
+              <th>UGC</th>
+              <th>Placement</th>
             </tr>
           </thead>
           <tbody>
@@ -176,6 +189,10 @@ export default function CollegesView({
           <td>${c.university_category || 'N/A'}</td>
           <td>${c.naac_grade}</td>
           <td>${c.nirf_rank_raw}</td>
+          <td>${c.co_ed || 'Co-ed'}</td>
+          <td>${c.bus_facility || 'No'}</td>
+          <td>${c.ugc_recognized || 'No'}</td>
+          <td>${c.placement_score || 0}</td>
         </tr>
       `;
     });
@@ -338,14 +355,31 @@ export default function CollegesView({
             </select>
           </div>
           <div>
-            <select 
-              value={selectedCourseName} 
-              onChange={e => { setSelectedCourseName(e.target.value); setCurrentPage(1); }} 
-              className="filter-select" 
-              style={{ color: selectedCourseName ? '#7C3AED' : 'var(--text-primary)', fontWeight: selectedCourseName ? 600 : 400 }}
-            >
+            <select value={selectedCourseName} onChange={e => { setSelectedCourseName(e.target.value); setCurrentPage(1); }} className="filter-select" style={{ color: selectedCourseName ? '#7C3AED' : 'var(--text-primary)', fontWeight: selectedCourseName ? 600 : 400 }}>
               <option value="" style={{ color: 'var(--text-primary)', fontWeight: 400 }}>All Courses ({uniqueCourseNames.length})</option>
               {uniqueCourseNames.map(n => <option key={n} value={n} style={{ color: 'var(--text-primary)', fontWeight: 400 }}>{n}</option>)}
+            </select>
+          </div>
+          <div>
+            <select value={selectedCoEd} onChange={e => { setSelectedCoEd(e.target.value); setCurrentPage(1); }} className="filter-select">
+              <option value="">All Gender Policies</option>
+              <option value="Co-ed">Co-educational</option>
+              <option value="Women">Women Only</option>
+              <option value="Men">Men Only</option>
+            </select>
+          </div>
+          <div>
+            <select value={selectedBus} onChange={e => { setSelectedBus(e.target.value); setCurrentPage(1); }} className="filter-select">
+              <option value="">All Bus Status</option>
+              <option value="Yes">Bus Facility Available</option>
+              <option value="No">No Bus Facility</option>
+            </select>
+          </div>
+          <div>
+            <select value={selectedUgc} onChange={e => { setSelectedUgc(e.target.value); setCurrentPage(1); }} className="filter-select">
+              <option value="">All UGC Status</option>
+              <option value="Yes">UGC Recognized</option>
+              <option value="No">Not UGC Recognized</option>
             </select>
           </div>
         </div>
@@ -423,11 +457,23 @@ export default function CollegesView({
                     <th onClick={() => handleSort('university_category')} className="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800">
                       University <ArrowUpDown className="inline w-3 h-3 ml-1" />
                     </th>
-                    <th onClick={() => handleSort('naac_grade')} className="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800">
+                     <th onClick={() => handleSort('naac_grade')} className="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800">
                       NAAC <ArrowUpDown className="inline w-3 h-3 ml-1" />
                     </th>
                     <th onClick={() => handleSort('nirf_rank')} className="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800">
                       NIRF <ArrowUpDown className="inline w-3 h-3 ml-1" />
+                    </th>
+                    <th onClick={() => handleSort('co_ed')} className="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800">
+                      Co-Ed <ArrowUpDown className="inline w-3 h-3 ml-1" />
+                    </th>
+                    <th onClick={() => handleSort('bus_facility')} className="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800">
+                      Bus <ArrowUpDown className="inline w-3 h-3 ml-1" />
+                    </th>
+                    <th onClick={() => handleSort('ugc_recognized')} className="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800">
+                      UGC <ArrowUpDown className="inline w-3 h-3 ml-1" />
+                    </th>
+                    <th onClick={() => handleSort('placement_score')} className="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800">
+                      Placement Score <ArrowUpDown className="inline w-3 h-3 ml-1" />
                     </th>
                     <th className="p-3">Website</th>
                     <th className="p-3 text-right">Actions</th>
@@ -446,6 +492,18 @@ export default function CollegesView({
                         </span>
                       </td>
                       <td className="p-3 font-bold">{c.nirf_rank_raw && c.nirf_rank_raw.trim() !== '' ? c.nirf_rank_raw : 'Not Ranked'}</td>
+                      <td className="p-3">{c.co_ed || 'Co-ed'}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] ${c.bus_facility === 'Yes' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400' : 'bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/20 dark:text-rose-400'}`}>
+                          {c.bus_facility || 'No'}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] ${c.ugc_recognized === 'Yes' ? 'bg-indigo-50 text-indigo-800 border border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-400' : 'bg-slate-50 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-400'}`}>
+                          {c.ugc_recognized || 'No'}
+                        </span>
+                      </td>
+                      <td className="p-3 font-semibold">{c.placement_score !== undefined ? `${c.placement_score}/10` : '0.0/10'}</td>
                       <td className="p-3">
                         {c.website ? (
                           <a href={c.website} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline flex items-center gap-1">
@@ -486,7 +544,7 @@ export default function CollegesView({
                   ))}
                   {sortedColleges.length === 0 && (
                     <tr>
-                      <td colSpan="8" className="p-8 text-center text-gray-400 italic">No colleges found matching criteria.</td>
+                      <td colSpan="12" className="p-8 text-center text-gray-400 italic">No colleges found matching criteria.</td>
                     </tr>
                   )}
                 </tbody>

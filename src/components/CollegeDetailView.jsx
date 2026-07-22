@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useJsApiLoader, GoogleMap, Marker } from '@react-google-maps/api';
 import { 
   Building2, 
   MapPin, 
@@ -16,10 +17,7 @@ import {
   Loader2
 } from 'lucide-react';
 
-export default function CollegeDetailView({ college, onClose, onSelectRelated, allColleges }) {
-  const miniMapRef = useRef(null);
-  const mapInstanceRef = useRef(null);
-  
+export default function CollegeDetailView({ college, onClose, onSelectRelated, allColleges, darkMode }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [courses, setCourses] = useState([]);
   const [loadingCourses, setLoadingCourses] = useState(false);
@@ -49,34 +47,38 @@ export default function CollegeDetailView({ college, onClose, onSelectRelated, a
       });
   }, [college]);
 
-  // Initialize mini Leaflet map for college location preview
-  useEffect(() => {
-    if (!window.L || !miniMapRef.current || !college.latitude || !college.longitude) return;
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: apiKey || '',
+    id: 'google-map-script'
+  });
 
-    // Create map instance
-    const map = window.L.map(miniMapRef.current, {
-      zoomControl: false,
-      attributionControl: false
-    }).setView([parseFloat(college.latitude), parseFloat(college.longitude)], 13);
-    
-    mapInstanceRef.current = map;
+  // local coordinates cache state
+  const [geocodedCoords] = useState(() => {
+    try {
+      const cached = localStorage.getItem('geocoded_coords_cache');
+      return cached ? JSON.parse(cached) : {};
+    } catch {
+      return {};
+    }
+  });
 
-    // Tile layer
-    window.L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19
-    }).addTo(map);
-
-    // Marker
-    const marker = window.L.marker([parseFloat(college.latitude), parseFloat(college.longitude)]).addTo(map);
-    marker.bindPopup(`<b>${college.college_name}</b>`).openPopup();
-
-    return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
+  const getCollegeCoords = (college) => {
+    const cached = geocodedCoords[college.college_id];
+    if (cached && cached !== 'FAILED') {
+      return cached;
+    }
+    if (college.latitude && college.longitude) {
+      const lat = parseFloat(college.latitude);
+      const lng = parseFloat(college.longitude);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        return { lat, lng };
       }
-    };
-  }, [college, activeTab]);
+    }
+    return null;
+  };
+
+  const coords = getCollegeCoords(college);
 
   const ugCount = courses.filter(c => c.course_level === 'UG').length;
   const pgCount = courses.filter(c => c.course_level === 'PG').length;
@@ -158,8 +160,8 @@ export default function CollegeDetailView({ college, onClose, onSelectRelated, a
                 </div>
               </div>
 
-              {/* Affiliation & Autonomy */}
-              <div className="grid grid-cols-2 gap-4 pb-3 border-b border-gray-100 dark:border-slate-800/80">
+              {/* Affiliation & Autonomy & Specs */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pb-3 border-b border-gray-100 dark:border-slate-800/80">
                 <div>
                   <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-1">University Affiliation</span>
                   <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">{college.university_category || 'Data Not Available'}</span>
@@ -167,6 +169,22 @@ export default function CollegeDetailView({ college, onClose, onSelectRelated, a
                 <div>
                   <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-1">Hostel Facility</span>
                   <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">{college.hostel_facility || 'Data Not Available'}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-1">Bus Facility</span>
+                  <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">{college.bus_facility || 'No'}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-1">Gender Policy</span>
+                  <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">{college.co_ed || 'Co-ed'}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-1">UGC Recognized</span>
+                  <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">{college.ugc_recognized || 'No'}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-1">Placement Score</span>
+                  <span className="text-xs font-semibold text-gray-850 dark:text-gray-200 font-bold">{college.placement_score !== undefined ? `${college.placement_score} / 10` : '0.0 / 10'}</span>
                 </div>
               </div>
 
@@ -220,13 +238,33 @@ export default function CollegeDetailView({ college, onClose, onSelectRelated, a
               </div>
 
               {/* Google Map Preview */}
-              {college.latitude && college.longitude && (
+              {coords && isLoaded && (
                 <div className="space-y-1.5">
                   <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block">Map Preview</span>
-                  <div 
-                    ref={miniMapRef} 
-                    className="w-100 h-32 rounded-lg border border-gray-150 dark:border-slate-800 z-10" 
-                  />
+                  <div className="w-100 h-32 rounded-lg border border-gray-150 dark:border-slate-800 overflow-hidden relative">
+                    <GoogleMap
+                      mapContainerStyle={{ width: '100%', height: '100%' }}
+                      center={coords}
+                      zoom={14}
+                      options={{
+                        zoomControl: false,
+                        streetViewControl: false,
+                        mapTypeControl: false,
+                        fullscreenControl: false,
+                        styles: darkMode ? [
+                          { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+                          { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+                          { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+                          { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] }
+                        ] : []
+                      }}
+                    >
+                      <Marker
+                        position={coords}
+                        title={college.college_name}
+                      />
+                    </GoogleMap>
+                  </div>
                 </div>
               )}
             </div>

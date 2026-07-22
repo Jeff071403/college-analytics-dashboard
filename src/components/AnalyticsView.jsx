@@ -105,6 +105,50 @@ export default function AnalyticsView({ colleges }) {
     { name: 'Missing Coordinates', value: Math.round((missingCoords / total) * 100) }
   ];
 
+  // 10. Co-Ed status distribution data
+  const coedCount = colleges.filter(c => c.co_ed === 'Co-ed').length;
+  const womenCount = colleges.filter(c => c.co_ed === 'Women').length;
+  const menCount = colleges.filter(c => c.co_ed === 'Men').length;
+  const coedChartData = [
+    { name: 'Co-ed', value: coedCount },
+    { name: 'Women', value: womenCount },
+    { name: 'Men', value: menCount }
+  ];
+
+  // 11. Bus Facility distribution data
+  const busYes = colleges.filter(c => c.bus_facility === 'Yes').length;
+  const busNo = total - busYes;
+  const busChartData = [
+    { name: 'Bus Service Available', value: busYes },
+    { name: 'No Bus Service', value: busNo }
+  ];
+
+  // 12. Average Placement Score by Category
+  const catPlacementScores = colleges.reduce((acc, c) => {
+    const cat = c.college_category;
+    const score = parseFloat(c.placement_score) || 0;
+    if (score > 0) {
+      if (!acc[cat]) acc[cat] = { total: 0, count: 0 };
+      acc[cat].total += score;
+      acc[cat].count += 1;
+    }
+    return acc;
+  }, {});
+  const avgPlacementChartData = Object.entries(catPlacementScores)
+    .map(([name, s]) => ({ name, value: Math.round((s.total / s.count) * 10) / 10 }))
+    .sort((a, b) => b.value - a.value);
+
+  // 13. Estimated Placement Score Binned Distribution
+  const placementRanges = {
+    'Under 5.0': colleges.filter(c => { const s = parseFloat(c.placement_score) || 0; return s > 0 && s < 5.0; }).length,
+    '5.0 - 5.9': colleges.filter(c => { const s = parseFloat(c.placement_score) || 0; return s >= 5.0 && s < 6.0; }).length,
+    '6.0 - 6.9': colleges.filter(c => { const s = parseFloat(c.placement_score) || 0; return s >= 6.0 && s < 7.0; }).length,
+    '7.0 - 7.9': colleges.filter(c => { const s = parseFloat(c.placement_score) || 0; return s >= 7.0 && s < 8.0; }).length,
+    '8.0 - 8.9': colleges.filter(c => { const s = parseFloat(c.placement_score) || 0; return s >= 8.0 && s < 9.0; }).length,
+    '9.0 & Above': colleges.filter(c => { const s = parseFloat(c.placement_score) || 0; return s >= 9.0; }).length
+  };
+  const placementDistChartData = Object.entries(placementRanges).map(([name, value]) => ({ name, value }));
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -374,6 +418,125 @@ export default function AnalyticsView({ colleges }) {
                 <YAxis dataKey="name" type="category" width={110} axisLine={false} tickLine={false} tick={{ fontSize: 8.5 }} />
                 <Tooltip formatter={v => [`${v}%`, 'Percentage']} contentStyle={{ fontSize: 11 }} />
                 <Bar dataKey="value" fill="#F87171" radius={[0, 4, 4, 0]} barSize={12} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* 10. Co-Ed Distribution (Donut) */}
+        <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl p-4 shadow-sm" id="an-coed">
+          <div className="flex justify-between items-center mb-3">
+            <div>
+              <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200">Gender Policy (Co-Ed) Distribution</h3>
+              <p className="text-[10px] text-gray-400">Co-ed vs Single-gender breakdown</p>
+            </div>
+            <button 
+              onClick={() => downloadChartAsPng('an-coed', 'analytics_coed.png')}
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 rounded text-gray-400 hover:text-indigo-600 transition"
+              title="Download PNG"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="h-64 flex items-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={coedChartData} cx="50%" cy="50%" innerRadius={42} outerRadius={68} paddingAngle={4} dataKey="value">
+                  <Cell fill="#3B82F6" />
+                  <Cell fill="#EC4899" />
+                  <Cell fill="#8B5CF6" />
+                </Pie>
+                <Tooltip formatter={v => [`${v} colleges`, 'Count']} />
+                <Legend verticalAlign="bottom" iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* 11. Bus Facility (Pie) */}
+        <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl p-4 shadow-sm" id="an-bus">
+          <div className="flex justify-between items-center mb-3">
+            <div>
+              <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200">Bus Facility Availability</h3>
+              <p className="text-[10px] text-gray-400">Transit services split</p>
+            </div>
+            <button 
+              onClick={() => downloadChartAsPng('an-bus', 'analytics_bus.png')}
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 rounded text-gray-400 hover:text-indigo-600 transition"
+              title="Download PNG"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="h-64 flex items-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={busChartData} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={4} dataKey="value">
+                  <Cell fill="#10B981" />
+                  <Cell fill="#EF4444" />
+                </Pie>
+                <Tooltip formatter={v => [`${v} colleges`, 'Count']} />
+                <Legend verticalAlign="bottom" iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* 12. Average Placement Score by Category (Bar) */}
+        <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl p-4 shadow-sm" id="an-placement-avg">
+          <div className="flex justify-between items-center mb-3">
+            <div>
+              <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200">Average Placement Score by Category</h3>
+              <p className="text-[10px] text-gray-400">Avg score (0 - 10) by discipline area</p>
+            </div>
+            <button 
+              onClick={() => downloadChartAsPng('an-placement-avg', 'analytics_placement_average.png')}
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 rounded text-gray-400 hover:text-indigo-600 transition"
+              title="Download PNG"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={avgPlacementChartData} layout="vertical" margin={{ left: 10, right: 10, top: 5, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" className="dark:stroke-slate-800" />
+                <XAxis type="number" domain={[0, 10]} tick={{ fontSize: 9 }} />
+                <YAxis dataKey="name" type="category" width={110} axisLine={false} tickLine={false} tickFormatter={t => t.length > 17 ? t.slice(0, 14) + '...' : t} tick={{ fontSize: 9, fill: 'var(--text-secondary)' }} />
+                <Tooltip formatter={v => [`${v} / 10`, 'Avg Placement Score']} contentStyle={{ fontSize: 11 }} />
+                <Bar dataKey="value" fill="#8B5CF6" radius={[0, 4, 4, 0]} barSize={11}>
+                  {avgPlacementChartData.map((_, i) => (
+                    <Cell key={i} fill={['#8B5CF6','#06B6D4','#10B981','#6366F1','#F59E0B','#EC4899','#EF4444'][i % 7]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* 13. Estimated Placement Score Distribution (Bar) */}
+        <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl p-4 shadow-sm" id="an-placement-dist">
+          <div className="flex justify-between items-center mb-3">
+            <div>
+              <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200">Placement Score Distribution</h3>
+              <p className="text-[10px] text-gray-400">Count of institutions by score tier</p>
+            </div>
+            <button 
+              onClick={() => downloadChartAsPng('an-placement-dist', 'analytics_placement_distribution.png')}
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 rounded text-gray-400 hover:text-indigo-600 transition"
+              title="Download PNG"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={placementDistChartData} margin={{ top: 10, bottom: 5, right: 5, left: -25 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" className="dark:stroke-slate-800" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9 }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 9 }} />
+                <Tooltip formatter={v => [`${v} colleges`, 'Count']} contentStyle={{ fontSize: 11 }} />
+                <Bar dataKey="value" fill="#F59E0B" radius={[4, 4, 0, 0]} barSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </div>

@@ -1018,17 +1018,19 @@
 /* ======================================================
    FORM INPUTS (admin)
    ====================================================== */
-.form-input {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.78rem;
-  background: var(--page-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  color: var(--text-primary);
-  transition: border-color 0.2s, background 0.3s;
+@layer components {
+  .form-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.78rem;
+    background: var(--page-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    transition: border-color 0.2s, background 0.3s;
+  }
+  .form-input:focus { border-color: #7C3AED; }
 }
-.form-input:focus { border-color: #7C3AED; }
 
 .form-label {
   font-size: 0.65rem;

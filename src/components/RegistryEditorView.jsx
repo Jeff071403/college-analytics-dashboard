@@ -206,6 +206,32 @@ export default function RegistryEditorView({
                         </select>
                       </div>
                       <div>
+                        <label className="form-label">Gender Policy (Co-Ed)</label>
+                        <select value={formState.co_ed || 'Co-ed'} onChange={e => setFormState({ ...formState, co_ed: e.target.value })} className="form-input dark:bg-slate-800 dark:border-slate-700 text-xs">
+                          <option value="Co-ed">Co-educational</option>
+                          <option value="Women">Women Only</option>
+                          <option value="Men">Men Only</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="form-label">Bus Facility</label>
+                        <select value={formState.bus_facility || 'No'} onChange={e => setFormState({ ...formState, bus_facility: e.target.value })} className="form-input dark:bg-slate-800 dark:border-slate-700 text-xs">
+                          <option value="No">No Bus Facility</option>
+                          <option value="Yes">Bus Facility Available</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="form-label">UGC Recognized</label>
+                        <select value={formState.ugc_recognized || 'No'} onChange={e => setFormState({ ...formState, ugc_recognized: e.target.value })} className="form-input dark:bg-slate-800 dark:border-slate-700 text-xs">
+                          <option value="No">No</option>
+                          <option value="Yes">Yes</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="form-label">Estimated Placement Score (0.0 to 10.0)</label>
+                        <input type="number" step="0.1" min="0" max="10" value={formState.placement_score || '0.0'} onChange={e => setFormState({ ...formState, placement_score: e.target.value })} className="form-input dark:bg-slate-800 dark:border-slate-700 text-xs" />
+                      </div>
+                      <div>
                         <label className="form-label">Google Maps Rating (1.0 - 5.0)</label>
                         <input type="number" step="0.1" value={formState.google_rating || '4.0'} onChange={e => setFormState({ ...formState, google_rating: e.target.value })} className="form-input dark:bg-slate-800 dark:border-slate-700 text-xs" />
                       </div>
